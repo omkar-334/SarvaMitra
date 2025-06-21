@@ -38,28 +38,15 @@ class DetectionRequest(BaseModel):
 
 class TextToSpeechRequest(BaseModel):
     text: str
-    target_language_code: Literal[
-        "bn-IN",
-        "en-IN",
-        "gu-IN",
-        "hi-IN",
-        "kn-IN",
-        "ml-IN",
-        "mr-IN",
-        "od-IN",
-        "pa-IN",
-        "ta-IN",
-        "te-IN",
-    ]
     speaker: Literal[
         "abhilash", "anushka", "arya", "hitesh", "karun", "manisha", "vidya"
-    ]
+    ] = "anushka"
     pace: Annotated[float, Field(strict=True, ge=0.3, le=3)] = 1.0
 
 
 class TranslationRequest(BaseModel):
     input: str
-    source_language_code: trans_langs
+    source_language_code: str = "auto"
     target_language_code: trans_langs
     speaker_gender: Literal["Male", "Female"] | None = "Male"
 

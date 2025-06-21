@@ -9,6 +9,7 @@ load_dotenv()
 
 # Then get the API key
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 
 # Add validation to ensure the key is loaded
 if not SARVAM_API_KEY:
@@ -16,15 +17,6 @@ if not SARVAM_API_KEY:
 
 
 def extract(api_response: dict) -> dict:
-    """
-    Extracts the assistant's message content from a Sarvam-style chat completion response.
-
-    Args:
-        api_response (dict): The full response dictionary from the Sarvam API.
-
-    Returns:
-        dict: A dictionary containing only the assistant's message content.
-    """
     try:
         content = api_response["choices"][0]["message"]["content"]
         return {"response": content}  # noqa: TRY300
@@ -32,7 +24,7 @@ def extract(api_response: dict) -> dict:
         return {"response": f"Error parsing response: {e!s}"}
 
 
-async def sarvam_post(
+async def post(
     url: str,
     payload: dict = None,
     key_type: str = "bearer",
@@ -40,17 +32,18 @@ async def sarvam_post(
     form_data: dict = None,
 ) -> dict:
     headers = {}
+    api_key = SARVAM_API_KEY if "sarvam" in url else MISTRAL_API_KEY
 
     if files:
-        headers["api-subscription-key"] = SARVAM_API_KEY
+        headers["api-subscription-key"] = api_key
     elif key_type == "bearer":
         headers = {
-            "Authorization": f"Bearer {SARVAM_API_KEY}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
     else:
         headers = {
-            "api-subscription-key": SARVAM_API_KEY,
+            "api-subscription-key": api_key,
             "Content-Type": "application/json",
         }
 

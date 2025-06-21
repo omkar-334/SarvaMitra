@@ -1,4 +1,4 @@
-// background.js - Updated with Tab Switching
+// background.js - Updated with Single Unified Menu
 
 // Set the side panel to open when clicking the extension icon
 chrome.sidePanel
@@ -7,33 +7,21 @@ chrome.sidePanel
 
 // Create context menus when extension starts
 chrome.runtime.onInstalled.addListener(() => {
-  // Create individual menu items
-  const menuItems = [
-    { id: "summarize", title: "📝 Summarize" },
-    { id: "chat", title: "💬 Chat" },
-    { id: "read", title: "🔊 Read" },
-    { id: "translate", title: "🌐 Translate" }
-  ];
-
-  menuItems.forEach(item => {
-    chrome.contextMenus.create({
-      id: item.id,
-      title: item.title,
-      contexts: ["selection"]
-    });
+  // Create single unified menu item
+  chrome.contextMenus.create({
+    id: "text-assistant",
+    title: "🤖 SarvaMitra",
+    contexts: ["selection"]
   });
 });
 
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  const validActions = ["summarize", "chat", "read", "translate"];
-  
-  if (validActions.includes(info.menuItemId)) {
-    console.log(`Context menu clicked: ${info.menuItemId} with text: ${info.selectionText}`);
+  if (info.menuItemId === "text-assistant") {
+    console.log(`Text Assistant clicked with text: ${info.selectionText}`);
     
-    // Store the selected text and action type
+    // Store the selected text (no specific action type - goes to homepage)
     const messageData = {
-      type: info.menuItemId,
       text: info.selectionText,
       timestamp: Date.now()
     };
@@ -53,14 +41,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         if (chrome.runtime.lastError) {
           console.error('Error opening side panel:', chrome.runtime.lastError);
         } else {
-          console.log(`Side panel opened for action: ${info.menuItemId}`);
+          console.log('Side panel opened for Text Assistant');
           
-          // Send a message to the side panel to ensure it switches to the correct tab
-          // This is a backup in case the storage listener doesn't fire immediately
+          // Send a message to the side panel to ensure it loads the text
           setTimeout(() => {
             chrome.runtime.sendMessage({
               action: 'switchTab',
-              tabName: info.menuItemId,
               text: info.selectionText
             }).catch(error => {
               // This is expected to fail if the side panel isn't ready yet

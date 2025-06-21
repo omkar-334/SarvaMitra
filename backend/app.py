@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import asyncio
+import json
 import os
+from typing import Annotated, Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from client import sarvam_post
+from client import post
 from models import (
     ChatRequest,
     DetectionRequest,
@@ -19,8 +22,11 @@ from prompts import PROMPT_TEMPLATES
 load_dotenv()
 
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
-if not SARVAM_API_KEY:
-    raise RuntimeError("SARVAM_API_KEY is not set in the environment")
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+IMAGE_JSON_PATH = "images.json"
+
+if not SARVAM_API_KEY or not MISTRAL_API_KEY:
+    raise RuntimeError("API KEYs are not set in the environment")
 
 app = FastAPI()
 app.add_middleware(
@@ -32,14 +38,26 @@ app.add_middleware(
 )
 
 
+@app.post("/detect")
+async def detect_language(request: DetectionRequest) -> dict:
+    payload = {"input": request.input}
+    response = await post(
+        "https://api.sarvam.ai/text-lid", payload, key_type="subscription"
+    )
+    return response
+
+
 # -----------------------------
 # TEXT TO SPEECH
 # -----------------------------
 @app.post("/tts")
-async def text_to_speech(req: TextToSpeechRequest):
-    return await sarvam_post(
+async def text_to_speech(req: TextToSpeechRequest) -> dict:
+    req_dict = req.model_dump()
+    detect_obj = await detect_language(DetectionRequest(input=req_dict["text"]))
+    req_dict["target_language_code"] = detect_obj["language_code"]
+    return await post(
         "https://api.sarvam.ai/text-to-speech",
-        req.model_dump(),
+        req_dict,
         key_type="subscription",
     )
 
@@ -49,7 +67,10 @@ async def text_to_speech(req: TextToSpeechRequest):
 # -----------------------------
 @app.post("/translate")
 async def translate(req: TranslationRequest) -> dict:
-    return await sarvam_post(
+    # req_dict = req.model_dump()
+    # detect_obj = await detect_language(DetectionRequest(input=req_dict["input"]))
+    # req_dict["source_language_code"] = detect_obj["language_code"]
+    return await post(
         "https://api.sarvam.ai/translate",
         req.model_dump(),
         key_type="subscription",
@@ -64,7 +85,7 @@ async def chat(req: ChatRequest) -> dict:
     payload = req.model_dump(exclude={"message"})
     payload["messages"] = [{"role": "user", "content": req.message}]
 
-    return await sarvam_post(
+    return await post(
         "https://api.sarvam.ai/v1/chat/completions",
         payload,
         key_type="bearer",
@@ -82,10 +103,118 @@ async def summarize(req: SummarizeRequest) -> dict:
     return await chat(ChatRequest(message=full_prompt))
 
 
-@app.post("/detect")
-async def detect_language(request: DetectionRequest):
-    payload = {"input": request.input}
-    response = await sarvam_post(
-        "https://api.sarvam.ai/text-lid", payload, key_type="subscription"
+# -----------------------------
+# SPEECH TO TEXT
+# -----------------------------
+@app.post("/stt")
+async def speech_to_text(
+    file: Annotated[UploadFile, File()],
+    model: Annotated[str, Form()] = "saarika:v2.5",
+    language_code: Literal[
+        "unknown",
+        "hi-IN",
+        "bn-IN",
+        "kn-IN",
+        "ml-IN",
+        "mr-IN",
+        "od-IN",
+        "pa-IN",
+        "ta-IN",
+        "te-IN",
+        "en-IN",
+    ] = "unknown",
+) -> dict:
+    form_data = {"model": model, "language_code": language_code}
+    files = {"file": (file.filename, await file.read(), file.content_type)}
+
+    return await post(
+        "https://api.sarvam.ai/speech-to-text",
+        files=files,
+        form_data=form_data,
+        key_type="subscription",
     )
-    return response
+
+
+def load_ocr_store() -> dict[str, dict]:
+    if os.path.exists(IMAGE_JSON_PATH):
+        with open(IMAGE_JSON_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_ocr_store(data: dict[str, dict]) -> None:
+    with open(IMAGE_JSON_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+# -------------------------
+# Endpoint
+# -------------------------
+@app.post("/image_ocr")
+async def image_ocr(image_url: str) -> str:
+    payload = {
+        "model": "mistral-ocr-latest",
+        "document": {"type": "image_url", "image_url": image_url},
+    }
+
+    # Use the shared post function
+    ocr_result = await post(
+        "https://api.mistral.ai/v1/ocr", payload=payload, key_type="bearer"
+    )
+    ocr_result = extract_ocr(ocr_result)
+    return ocr_result
+
+
+@app.post("/image_vlm")
+async def image_vlm(image_url: str) -> str:
+    payload = {
+        "model": "pixtral-12b-2409",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "Describe the image in detail. "
+                            "Include people, objects, scene, and any relevant context."
+                        ),
+                    },
+                    {"type": "image_url", "image_url": image_url},
+                ],
+            }
+        ],
+        "max_tokens": 300,
+    }
+
+    result = await post(
+        "https://api.mistral.ai/v1/chat/completions", payload=payload, key_type="bearer"
+    )
+    return result["response"]
+
+
+@app.post("/image")
+async def analyze_image(image_url: str) -> dict:
+    ocr_store = load_ocr_store()
+    if image_url in ocr_store:
+        return ocr_store[image_url]
+
+    ocr_task = image_ocr(image_url)
+    vlm_task = image_vlm(image_url)
+
+    ocr_result, vlm_result = await asyncio.gather(ocr_task, vlm_task)
+    result = {
+        "ocr": ocr_result,
+        "vlm": vlm_result,
+    }
+
+    ocr_store[image_url] = result
+    save_ocr_store(ocr_store)
+
+    return result
+
+
+def extract_ocr(ocr_response: dict) -> str:
+    pages = ocr_response.get("pages", [])
+    markdown_parts = [page.get("markdown", "") for page in pages]
+    return "\n\n".join(markdown_parts)
