@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Assistant</title>
+    <script src="marked.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 100%;
+            background: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            background: #fff;
+            border-bottom: 2px solid #e0e0e0;
+            padding: 0 10px;
+        }
+        
+        .nav-tab {
+            flex: 1;
+            padding: 12px 8px;
+            text-align: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-tab:hover {
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .nav-tab.active {
+            color: #1976d2;
+            border-bottom-color: #1976d2;
+            background-color: #f3f9ff;
+        }
+        
+        /* Page Content */
+        .page-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .page {
+            display: none;
+        }
+        
+        .page.active {
+            display: block;
+        }
+        
+        .page h2 {
+            margin-top: 0;
+            color: #333;
+            font-size: 1.4em;
+            margin-bottom: 15px;
+        }
+        
+        /* Selected Text Display */
+        .selected-text {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .no-text {
+            color: #999;
+            font-style: italic;
+            text-align: center;
+            padding: 30px;
+            background: #fafafa;
+            border-radius: 6px;
+            border: 2px dashed #ddd;
+        }
+        
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: #1976d2;
+            box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+        }
+        
+        .btn {
+            background: #1976d2;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background: #1565c0;
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        /* Result Display */
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #28a745;
+        }
+        
+        .result.loading {
+            border-left-color: #ffc107;
+            background: #fff8e1;
+        }
+        
+        .result.error {
+            border-left-color: #dc3545;
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        /* Markdown Styles */
+        .markdown-content {
+            line-height: 1.6;
+            color: #333;
+        }
+        
+        /* Ensure markdown content works well in result containers */
+        .result .markdown-content {
+            margin: 0;
+        }
+        
+        /* Ensure markdown content works well in chat messages */
+        .chat-message .markdown-content {
+            margin: 0;
+            display: inline;
+        }
+        
+        .chat-message .markdown-content p {
+            margin: 0;
+            display: inline;
+        }
+        
+        .chat-message .markdown-content p:not(:first-child) {
+            margin-top: 0.5em;
+        }
+        
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3,
+        .markdown-content h4,
+        .markdown-content h5,
+        .markdown-content h6 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+        
+        .markdown-content h1 {
+            font-size: 1.5em;
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+        }
+        
+        .markdown-content h2 {
+            font-size: 1.3em;
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+        }
+        
+        .markdown-content h3 {
+            font-size: 1.1em;
+        }
+        
+        .markdown-content p {
+            margin-bottom: 1em;
+        }
+        
+        .markdown-content ul,
+        .markdown-content ol {
+            margin-bottom: 1em;
+            padding-left: 2em;
+        }
+        
+        .markdown-content li {
+            margin-bottom: 0.25em;
+        }
+        
+        .markdown-content blockquote {
+            margin: 1em 0;
+            padding: 0 1em;
+            color: #6a737d;
+            border-left: 0.25em solid #dfe2e5;
+            background-color: #f6f8fa;
+        }
+        
+        .markdown-content code {
+            background-color: #f6f8fa;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.9em;
+        }
+        
+        .markdown-content pre {
+            background-color: #f6f8fa;
+            border-radius: 6px;
+            padding: 16px;
+            overflow: auto;
+            margin: 1em 0;
+        }
+        
+        .markdown-content pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        
+        .markdown-content strong {
+            font-weight: 600;
+        }
+        
+        .markdown-content em {
+            font-style: italic;
+        }
+        
+        .markdown-content a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+        
+        .markdown-content a:hover {
+            text-decoration: underline;
+        }
+        
+        .markdown-content hr {
+            height: 0.25em;
+            padding: 0;
+            margin: 24px 0;
+            background-color: #e1e4e8;
+            border: 0;
+        }
+        
+        .markdown-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+        }
+        
+        .markdown-content th,
+        .markdown-content td {
+            padding: 6px 13px;
+            border: 1px solid #dfe2e5;
+        }
+        
+        .markdown-content th {
+            background-color: #f6f8fa;
+            font-weight: 600;
+        }
+        
+        /* Chat specific styles */
+        .chat-messages {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        
+        .chat-message {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .chat-message:last-child {
+            border-bottom: none;
+        }
+        
+        .chat-message.user {
+            background: #e3f2fd;
+        }
+        
+        .chat-message.assistant {
+            background: #f1f8e9;
+        }
+        
+        .chat-input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .chat-input-group .form-control {
+            flex: 1;
+        }
+        
+        /* Voice controls */
+        .voice-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 15px;
+        }
+        
+        .voice-speed {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .voice-speed input[type="range"] {
+            width: 100px;
+        }
+        
+        /* Translation specific */
+        .translation-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        @media (max-width: 300px) {
+            .translation-controls {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" data-page="summarize">Summarize</button>
+            <button class="nav-tab" data-page="chat">Chat</button>
+            <button class="nav-tab" data-page="read">Read</button>
+            <button class="nav-tab" data-page="translate">Translate</button>
+        </div>
+        
+        <!-- Page Content -->
+        <div class="page-content">
+            <!-- Summarize Page -->
+            <div class="page active" id="summarize">
+                
+                <div class="form-group">
+                    <textarea class="form-control" id="summarize-textarea" rows="6" placeholder="Selected text will appear here. You can edit it before summarizing."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Style:</label>
+                    <select class="form-control" id="summary-style">
+                        <option value="normal" selected>Normal</option>
+                        <option value="concise">Concise</option>
+                        <option value="explanatory">Explanatory</option>
+                        <option value="formal">Formal</option>
+                    </select>
+                </div>
+                
+                <button class="btn" id="summarize-btn" disabled>Generate Summary</button>
+                
+                <div class="result" id="summarize-result" style="display: none;"></div>
+            </div>
+            
+            <!-- Chat Page -->
+            <div class="page" id="chat">
+                <h2>💬 Chat About Text</h2>
+                
+                <div class="form-group">
+                    <label class="form-label">Text to Chat About:</label>
+                    <textarea class="form-control" id="chat-textarea" rows="6" placeholder="Selected text will appear here. You can edit it before chatting."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Chat History:</label>
+                    <div class="chat-messages" id="chat-messages">
+                        <div class="chat-message assistant">
+                            <strong>Assistant:</strong> <div class="markdown-content">Hello! I'm ready to discuss the selected text with you. What would you like to know?</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Ask a question:</label>
+                    <div class="chat-input-group">
+                        <input type="text" class="form-control" id="chat-input" placeholder="Ask anything about the selected text..." disabled>
+                        <button class="btn" id="chat-send-btn" disabled>Send</button>
+                    </div>
+                </div>
+                
+                <button class="btn btn-secondary" id="chat-clear-btn">Clear Chat</button>
+            </div>
+            
+            <!-- Read Page -->
+            <div class="page" id="read">
+                
+                <div class="form-group">
+                    <textarea class="form-control" id="read-textarea" rows="6" placeholder="Selected text will appear here. You can edit it before reading aloud."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Language:</label>
+                    <select class="form-control" id="tts-language">
+                        <option value="bn-IN">Bengali</option>
+                        <option value="en-IN" selected>English</option>
+                        <option value="gu-IN">Gujarati</option>
+                        <option value="hi-IN">Hindi</option>
+                        <option value="kn-IN">Kannada</option>
+                        <option value="ml-IN">Malayalam</option>
+                        <option value="mr-IN">Marathi</option>
+                        <option value="od-IN">Odia</option>
+                        <option value="pa-IN">Punjabi</option>
+                        <option value="ta-IN">Tamil</option>
+                        <option value="te-IN">Telugu</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Speaker:</label>
+                    <select class="form-control" id="tts-speaker">
+                        <option value="abhilash">Abhilash</option>
+                        <option value="anushka" selected>Anushka</option>
+                        <option value="arya">Arya</option>
+                        <option value="hitesh">Hitesh</option>
+                        <option value="karun">Karun</option>
+                        <option value="manisha">Manisha</option>
+                        <option value="vidya">Vidya</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Pace: <span id="pace-value">1.0</span>x</label>
+                    <input type="range" class="form-control" id="tts-pace" min="0.3" max="3" step="0.1" value="1.0">
+                </div>
+                
+                <div class="voice-controls">
+                    <button class="btn" id="play-btn" disabled>▶️ Play</button>
+                    <button class="btn btn-secondary" id="pause-btn" disabled>⏸️ Pause</button>
+                    <button class="btn btn-secondary" id="stop-btn" disabled>⏹️ Stop</button>
+                </div>
+                
+                <div class="result" id="read-result" style="display: none;"></div>
+            </div>
+            
+            <!-- Translate Page -->
+            <div class="page" id="translate">
+                
+                <div class="form-group">
+                    <textarea class="form-control" id="translate-textarea" rows="6" placeholder="Selected text will appear here. You can edit it before translating."></textarea>
+                </div>
+                
+                <div class="translation-controls">
+                    <div class="form-group">
+                        <label class="form-label">From Language:</label>
+                        <select class="form-control" id="source-lang">
+                            <option value="auto" selected>Auto-detect</option>
+                            <option value="as-IN">Assamese</option>
+                            <option value="bn-IN">Bengali</option>
+                            <option value="brx-IN">Bodo</option>
+                            <option value="doi-IN">Dogri</option>
+                            <option value="en-IN">English</option>
+                            <option value="gu-IN">Gujarati</option>
+                            <option value="hi-IN">Hindi</option>
+                            <option value="kn-IN">Kannada</option>
+                            <option value="ks-IN">Kashmiri</option>
+                            <option value="kok-IN">Konkani</option>
+                            <option value="mai-IN">Maithili</option>
+                            <option value="ml-IN">Malayalam</option>
+                            <option value="mni-IN">Manipuri (Meiteilon)</option>
+                            <option value="mr-IN">Marathi</option>
+                            <option value="ne-IN">Nepali</option>
+                            <option value="od-IN">Odia</option>
+                            <option value="pa-IN">Punjabi</option>
+                            <option value="sa-IN">Sanskrit</option>
+                            <option value="sat-IN">Santali</option>
+                            <option value="sd-IN">Sindhi</option>
+                            <option value="ta-IN">Tamil</option>
+                            <option value="te-IN">Telugu</option>
+                            <option value="ur-IN">Urdu</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">To Language:</label>
+                        <select class="form-control" id="target-lang">
+                            <option value="as-IN">Assamese</option>
+                            <option value="bn-IN">Bengali</option>
+                            <option value="brx-IN">Bodo</option>
+                            <option value="doi-IN">Dogri</option>
+                            <option value="en-IN" selected>English</option>
+                            <option value="gu-IN">Gujarati</option>
+                            <option value="hi-IN">Hindi</option>
+                            <option value="kn-IN">Kannada</option>
+                            <option value="ks-IN">Kashmiri</option>
+                            <option value="kok-IN">Konkani</option>
+                            <option value="mai-IN">Maithili</option>
+                            <option value="ml-IN">Malayalam</option>
+                            <option value="mni-IN">Manipuri (Meiteilon)</option>
+                            <option value="mr-IN">Marathi</option>
+                            <option value="ne-IN">Nepali</option>
+                            <option value="od-IN">Odia</option>
+                            <option value="pa-IN">Punjabi</option>
+                            <option value="sa-IN">Sanskrit</option>
+                            <option value="sat-IN">Santali</option>
+                            <option value="sd-IN">Sindhi</option>
+                            <option value="ta-IN">Tamil</option>
+                            <option value="te-IN">Telugu</option>
+                            <option value="ur-IN">Urdu</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <button class="btn" id="translate-btn" disabled>Translate Text</button>
+                <button class="btn btn-secondary" id="auto-detect-btn" disabled>🔍 Auto-detect</button>
+                
+                <div class="result" id="translate-result" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="sidepanel.js"></script>
+</body>
+</html>
