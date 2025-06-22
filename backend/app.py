@@ -98,6 +98,7 @@ async def chat(req: ChatRequest) -> dict:
         user_prompt += parse_context(req.context) + "\n\n"
 
     user_prompt += req.message
+    print(user_prompt)
     payload = req.model_dump(exclude={"message"})
     payload["messages"] = [{"role": "user", "content": user_prompt}]
 
