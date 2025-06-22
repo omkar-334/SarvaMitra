@@ -93,13 +93,11 @@ async def translate(req: TranslationRequest) -> dict:
 # -----------------------------
 @app.post("/chat")
 async def chat(req: ChatRequest) -> dict:
-    print(req)
     user_prompt = ""
     if req.context:
         user_prompt += parse_context(req.context) + "\n\n"
 
     user_prompt += req.message
-    print(user_prompt)
     payload = req.model_dump(exclude={"message"})
     payload["messages"] = [{"role": "user", "content": user_prompt}]
 
@@ -213,11 +211,11 @@ async def analyze_image(image_url: str, store: dict = None) -> dict:
     return result
 
 
-async def background_image_batch(urls: list[str], max_concurrent: int = 5):
+async def background_image_batch(urls: list[str], max_concurrent: int = 5) -> None:
     sem = asyncio.Semaphore(max_concurrent)
     store = load_ocr_store()
 
-    async def sem_task(url: str):
+    async def sem_task(url: str) -> None:
         async with sem:
             await analyze_image(url, store)
 
@@ -225,12 +223,14 @@ async def background_image_batch(urls: list[str], max_concurrent: int = 5):
     save_ocr_store(store)
 
 
-def run_async_batch(urls: list[str]):
+def run_async_batch(urls: list[str]) -> None:
     asyncio.run(background_image_batch(urls))
 
 
 @app.post("/batch/image")
-async def batch_image_analyze(urls: list[str], background_tasks: BackgroundTasks):
+async def batch_image_analyze(
+    urls: list[str], background_tasks: BackgroundTasks
+) -> dict:
     # Queue this for background execution after returning response
     background_tasks.add_task(run_async_batch, urls)
     return {"status": "running"}
