@@ -122,7 +122,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // Enable chunking mode
                 const chunkCount = chunkWebpage();
                 // Auto-focus on first chunk
-                setTimeout(() => autoFocusFirstChunk(), 100);
+                setTimeout(() => {
+                    try {
+                        autoFocusFirstChunk();
+                    } catch (error) {
+                        console.error('Auto-focus failed:', error);
+                        // Try again with a longer delay if first attempt fails
+                        setTimeout(() => {
+                            try {
+                                autoFocusFirstChunk();
+                            } catch (retryError) {
+                                console.error('Auto-focus retry failed:', retryError);
+                            }
+                        }, 500);
+                    }
+                }, 200);
                 sendResponse({ 
                     success: true, 
                     chunkCount: chunkCount,
@@ -1214,10 +1228,42 @@ function autoFocusFirstChunk() {
     if (webpageChunks.length > 0) {
         currentChunkIndex = 0;
         const firstChunk = webpageChunks[0];
-        firstChunk.element.classList.add('sarvam-chunk-focused');
-        firstChunk.element.focus();
-        announceChunk(firstChunk);
-        console.log(`Auto-focused on first chunk: ${firstChunk.text.substring(0, 50)}...`);
+        
+        if (firstChunk && firstChunk.element) {
+            // Clear any existing focus
+            webpageChunks.forEach(chunk => {
+                if (chunk.element) {
+                    chunk.element.classList.remove('sarvam-chunk-focused');
+                }
+            });
+            
+            // Add focus styling
+            firstChunk.element.classList.add('sarvam-chunk-focused');
+            
+            // Make sure the element is focusable
+            if (!firstChunk.element.hasAttribute('tabindex')) {
+                firstChunk.element.setAttribute('tabindex', '0');
+            }
+            
+            // Focus the element
+            firstChunk.element.focus();
+            
+            // Scroll the element into view if needed
+            firstChunk.element.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center',
+                inline: 'nearest'
+            });
+            
+            // Announce the chunk
+            announceChunk(firstChunk);
+            
+            console.log(`Auto-focused on first chunk: ${firstChunk.text.substring(0, 50)}...`);
+        } else {
+            console.error('First chunk or its element is not available');
+        }
+    } else {
+        console.log('No chunks available for auto-focus');
     }
 }
 

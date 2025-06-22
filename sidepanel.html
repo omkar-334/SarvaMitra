@@ -10,7 +10,7 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f5f5f5;
+            background-color: #f8f9fa;
             min-height: 100vh;
             height: 100vh;
             overflow: hidden;
@@ -23,15 +23,17 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
         }
         
         /* Page Content */
         .page-content {
             flex: 1;
-            padding: 10px;
+            padding: 16px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
+            gap: 12px;
         }
         
         .page {
@@ -39,6 +41,7 @@
             flex: 1;
             overflow-y: auto;
             flex-direction: column;
+            gap: 12px;
         }
         
         .page h2 {
@@ -51,8 +54,8 @@
         /* Selected Text Display */
         .selected-text {
             background: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
             padding: 15px;
             margin: 15px 0;
             font-size: 14px;
@@ -61,6 +64,7 @@
             word-wrap: break-word;
             max-height: 150px;
             overflow-y: auto;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         
         .no-text {
@@ -69,8 +73,8 @@
             text-align: center;
             padding: 30px;
             background: #fafafa;
-            border-radius: 6px;
-            border: 2px dashed #ddd;
+            border-radius: 8px;
+            border: 2px dashed #e9ecef;
         }
         
         /* Form Controls */
@@ -88,16 +92,17 @@
         .form-control {
             width: 100%;
             padding: 8px 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
             font-size: 14px;
             box-sizing: border-box;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
         
         .form-control:focus {
             outline: none;
             border-color: #1976d2;
-            box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
         }
         
         .btn {
@@ -105,20 +110,22 @@
             color: white;
             padding: 8px 16px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
             font-weight: 500;
-            transition: background-color 0.2s;
+            transition: background-color 0.2s, transform 0.1s;
         }
         
         .btn:hover {
             background: #1565c0;
+            transform: translateY(-1px);
         }
         
         .btn:disabled {
-            background: #ccc;
+            background: #e9ecef;
             cursor: not-allowed;
+            transform: none;
         }
         
         .btn-secondary {
@@ -132,10 +139,17 @@
         /* Result Display */
         .result {
             margin-top: 15px;
-            padding: 12px;
+            padding: 16px;
             background: #f8f9fa;
-            border-radius: 6px;
+            border-radius: 8px;
             border-left: 4px solid #28a745;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: transform 0.2s;
+        }
+        
+        .result:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
         }
         
         .result.loading {
@@ -203,72 +217,59 @@
             font-size: 1.1em;
         }
         
+        .markdown-content h4 {
+            font-size: 1em;
+        }
+        
+        .markdown-content h5 {
+            font-size: 0.9em;
+        }
+        
+        .markdown-content h6 {
+            font-size: 0.8em;
+        }
+        
         .markdown-content p {
-            margin-bottom: 1em;
+            margin: 0.8em 0;
         }
         
         .markdown-content ul,
         .markdown-content ol {
-            margin-bottom: 1em;
-            padding-left: 2em;
+            margin: 0.8em 0;
+            padding-left: 1.5em;
         }
         
         .markdown-content li {
-            margin-bottom: 0.25em;
+            margin: 0.3em 0;
         }
         
         .markdown-content blockquote {
             margin: 1em 0;
-            padding: 0 1em;
-            color: #6a737d;
-            border-left: 0.25em solid #dfe2e5;
-            background-color: #f6f8fa;
+            padding: 0.5em 1em;
+            border-left: 4px solid #1976d2;
+            background: #f8f9fa;
+            border-radius: 4px;
         }
         
         .markdown-content code {
-            background-color: #f6f8fa;
+            background: #f1f3f4;
             padding: 0.2em 0.4em;
             border-radius: 3px;
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
             font-size: 0.9em;
         }
         
         .markdown-content pre {
-            background-color: #f6f8fa;
+            background: #f8f9fa;
+            padding: 1em;
             border-radius: 6px;
-            padding: 16px;
-            overflow: auto;
-            margin: 1em 0;
+            overflow-x: auto;
+            border: 1px solid #e9ecef;
         }
         
         .markdown-content pre code {
-            background-color: transparent;
+            background: none;
             padding: 0;
-        }
-        
-        .markdown-content strong {
-            font-weight: 600;
-        }
-        
-        .markdown-content em {
-            font-style: italic;
-        }
-        
-        .markdown-content a {
-            color: #0366d6;
-            text-decoration: none;
-        }
-        
-        .markdown-content a:hover {
-            text-decoration: underline;
-        }
-        
-        .markdown-content hr {
-            height: 0.25em;
-            padding: 0;
-            margin: 24px 0;
-            background-color: #e1e4e8;
-            border: 0;
         }
         
         .markdown-content table {
@@ -279,527 +280,117 @@
         
         .markdown-content th,
         .markdown-content td {
-            padding: 6px 13px;
-            border: 1px solid #dfe2e5;
+            border: 1px solid #e9ecef;
+            padding: 0.5em;
+            text-align: left;
         }
         
         .markdown-content th {
-            background-color: #f6f8fa;
+            background: #f8f9fa;
             font-weight: 600;
         }
         
-        /* Chat specific styles */
-        .chat-messages {
-            max-height: 300px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            margin-bottom: 12px;
-        }
-        
-        .chat-message {
-            padding: 8px 12px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .chat-message:last-child {
-            border-bottom: none;
-        }
-        
-        .chat-message.user {
-            background: #e3f2fd;
-        }
-        
-        .chat-message.assistant {
-            background: #f1f8e9;
-        }
-        
-        .chat-input-group {
-            display: flex;
-            gap: 8px;
-        }
-        
-        .chat-input-group .form-control {
-            flex: 1;
-        }
-        
-        /* New Chat Interface Layout */
+        /* Chat History Section */
         .chat-history-section {
             flex: 1;
             overflow-y: auto;
-            border-bottom: 1px solid #e0e0e0;
-            background: #fafafa;
-            min-height: 0;
+            margin-bottom: 12px;
         }
         
         .chat-history-container {
-            padding: 8px;
-            max-height: none;
-            height: 100%;
-            overflow-y: auto;
-        }
-        
-        .parameters-row {
-            background: #f8f9fa;
-            border-bottom: 1px solid #e0e0e0;
-            padding: 6px 8px;
-            min-height: 32px;
-            display: flex;
-            align-items: center;
-        }
-        
-        .parameters-content {
-            width: 100%;
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            justify-content: space-between;
-        }
-        
-        .parameters-left {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        
-        .parameter-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2px;
-        }
-        
-        .parameter-label {
-            font-size: 9px;
-            color: #666;
-            font-weight: 500;
-            text-align: center;
-        }
-        
-        .parameter-item select,
-        .parameter-item input {
-            font-size: 10px;
-            padding: 2px 4px;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            background: white;
-        }
-        
-        .parameter-execute-btn {
-            background: #1976d2;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 18px;
-            height: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s ease;
-            margin-left: auto;
-        }
-        
-        .parameter-execute-btn:hover {
-            background: #1565c0;
-            transform: scale(1.1);
-        }
-        
-        .parameter-execute-btn.voice-record-btn {
-            background: #28a745;
-        }
-        
-        .parameter-execute-btn.voice-record-btn:hover {
-            background: #218838;
-        }
-        
-        .parameter-execute-btn.voice-record-btn.recording {
-            background: #dc3545;
-            animation: pulse 1.5s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
-        
-        /* Quick Actions Row - New Design */
-        .quick-actions-row {
-            margin-bottom: 8px;
-        }
-        
-        .quick-actions-container {
-            display: flex;
-            align-items: stretch;
-            gap: 4px;
-        }
-        
-        .selected-content-area {
-            flex: 1;
-            height: 38px;
-            min-height: 38px;
-            max-height: 120px;
-            resize: vertical;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 12px;
-            line-height: 1.4;
-            font-family: inherit;
-            margin: 0;
-            box-sizing: border-box;
-            background-color: #f8f9fa;
-        }
-        
-        .action-grid-btn {
-            background: transparent;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            width: 38px;
-            height: 38px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            padding: 0;
-            margin: 0;
-            box-sizing: border-box;
-        }
-        
-        .action-grid-btn:hover {
-            background-color: #f0f0f0;
-            border-color: #007bff;
-        }
-        
-        .action-grid-btn:active {
-            background-color: #e0e0e0;
-            transform: scale(0.95);
-        }
-        
-        /* Selected Text Section */
-        .selected-text-section {
-            background: #fff;
-            border-top: 1px solid #e0e0e0;
-            padding: 8px;
-        }
-        
-        .selected-text-container {
-            display: flex;
-            align-items: stretch;
-            gap: 4px;
-        }
-        
-        .selected-text-area {
-            flex: 1;
-            min-height: 60px;
-            max-height: 120px;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 12px;
-            line-height: 1.4;
-            resize: vertical;
-            font-family: inherit;
-        }
-        
-        .selected-text-area:focus {
-            outline: none;
-            border-color: #1976d2;
-            box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
-            background-color: #f8f9fa;
-        }
-        
-        .selected-text-area.selected {
-            border-color: #1976d2;
-            background-color: #e3f2fd;
-        }
-        
-        .voice-record-btn {
-            background: #28a745;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
-        }
-        
-        .voice-record-btn:hover {
-            background: #218838;
-            transform: scale(1.05);
-        }
-        
-        .voice-record-btn.recording {
-            background: #dc3545;
-            animation: pulse 1.5s infinite;
-        }
-        
-        .chat-enter-btn {
-            background: #1976d2;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
-        }
-        
-        .chat-enter-btn:hover {
-            background: #1565c0;
-            transform: scale(1.05);
-        }
-        
-        .chat-enter-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        /* Action Configuration */
-        .action-config {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-        
-        .action-config h4 {
-            margin: 0 0 12px 0;
-            color: #333;
-            font-size: 15px;
-            font-weight: 600;
-        }
-        
-        .config-buttons {
-            display: flex;
-            gap: 8px;
-            margin-top: 12px;
-        }
-        
-        .results-section {
-            margin-bottom: 15px;
-        }
-        
-        .results-section h4 {
-            margin: 0 0 12px 0;
-            color: #333;
-            font-size: 15px;
-            font-weight: 600;
-        }
-        
-        .results-container {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            background: white;
-        }
-        
-        /* Welcome message */
-        .welcome-message {
             padding: 12px;
-            text-align: center;
-            color: #6c757d;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e9ecef;
+            max-height: 60vh;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+        
+        /* Welcome Message Styling */
+        .welcome-message {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            font-size: 13px;
             line-height: 1.4;
-            font-size: 11px;
+            color: #495057;
         }
         
         .welcome-message p {
-            margin: 0 0 8px 0;
+            margin: 6px 0;
         }
         
-        .welcome-message ul {
-            text-align: left;
-            margin: 8px 0;
-            padding-left: 12px;
+        .welcome-message ol {
+            margin: 6px 0;
+            padding-left: 20px;
         }
         
         .welcome-message li {
-            margin-bottom: 4px;
+            margin: 2px 0;
         }
         
-        .result-item {
-            padding: 12px;
-            border-bottom: 1px solid #f1f3f4;
-            background: white;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
+        /* Textarea Styling */
+        .selected-content-area,
+        .selected-text-area {
+            border: 2px solid #e9ecef !important;
+            border-radius: 8px !important;
+            font-size: 13px !important;
+            line-height: 1.4 !important;
+            transition: border-color 0.2s, box-shadow 0.2s !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
         }
         
-        .result-item:hover {
-            background: #f8f9fa;
+        .selected-content-area:focus,
+        .selected-text-area:focus {
+            outline: none !important;
+            border-color: #1976d2 !important;
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1) !important;
         }
         
-        .result-item.selected {
-            background: #e3f2fd;
-            border-left: 4px solid #1976d2;
-        }
-        
-        .result-item:last-child {
-            border-bottom: none;
-        }
-        
-        .result-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-            font-size: 11px;
-            color: #6c757d;
-        }
-        
-        .result-type {
-            background: #e3f2fd;
-            color: #1976d2;
-            padding: 3px 6px;
-            border-radius: 12px;
-            font-weight: 500;
-        }
-        
-        .result-timestamp {
-            color: #999;
-        }
-        
-        .result-content {
-            line-height: 1.5;
-            color: #333;
-        }
-        
-        .result-actions {
-            margin-top: 8px;
-            display: flex;
-            gap: 8px;
-        }
-        
-        .result-action-btn {
-            background: none;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            padding: 6px 8px;
-            font-size: 14px;
-            cursor: pointer;
-            color: #6c757d;
-            transition: all 0.2s ease;
-            min-width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .result-action-btn:hover {
-            background: #f8f9fa;
-            border-color: #1976d2;
-            color: #1976d2;
-        }
-        
-        .clear-section {
-            text-align: center;
-            margin-top: 15px;
-        }
-        
-        /* Image Row */
-        .image-row {
-            background: #fff;
-            border-bottom: 1px solid #e0e0e0;
-            padding: 6px 8px;
-            min-height: 60px;
-        }
-        
-        .image-container {
-            display: flex;
-            gap: 4px;
-            overflow-x: auto;
-            padding: 2px;
-            height: 60px;
-            flex-wrap: nowrap;
-        }
-        
-        .image-item {
-            position: relative;
-            width: 50px;
-            height: 50px;
-            border: 2px solid #e0e0e0;
-            border-radius: 6px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #f8f9fa;
-        }
-        
-        .image-item:hover {
-            border-color: #1976d2;
-            transform: scale(1.05);
-        }
-        
-        .image-item.selected {
-            border-color: #1976d2;
-            background-color: #e3f2fd;
-        }
-        
-        .image-placeholder {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            height: 100%;
-        }
-        
-        .image-number {
-            color: #666;
-            font-size: 14px;
-            font-weight: bold;
-            background: white;
-            padding: 4px 8px;
-            border-radius: 12px;
-            border: 1px solid #ddd;
-        }
-        
-        .image-item.selected .image-number {
-            color: #1976d2;
-            background: #e3f2fd;
-            border-color: #1976d2;
-        }
-        
-        /* Chunking Controls Row (Accessibility) */
-        .chunking-row {
-            margin-bottom: 8px;
-        }
-        
+        /* Blue Bar Styling */
         .chunking-container {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            padding: 8px;
-            background: #e3f2fd;
-            border: 2px solid #1976d2;
-            border-radius: 6px;
-            margin: 4px 0;
+            border-radius: 8px !important;
+            box-shadow: 0 4px 12px rgba(25, 118, 210, 0.15) !important;
+            border: 2px solid #1976d2 !important;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%) !important;
         }
         
-        .chunking-info {
-            flex: 1;
-            font-size: 12px;
-            color: #1976d2;
+        /* Button Styling */
+        .action-grid-btn {
+            transition: all 0.2s !important;
+            border: 2px solid #e9ecef !important;
+            border-radius: 8px !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
+        }
+        
+        .action-grid-btn:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+            border-color: #1976d2 !important;
+        }
+        
+        /* Select Styling */
+        #translation-language {
+            border: 2px solid #e9ecef !important;
+            border-radius: 6px !important;
+            transition: border-color 0.2s, box-shadow 0.2s !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
+        }
+        
+        #translation-language:focus {
+            outline: none !important;
+            border-color: #1976d2 !important;
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1) !important;
+        }
+        
+        /* Checkbox Styling */
+        #auto-read-toggle {
+            accent-color: #1976d2;
+            transform: scale(1.2);
         }
         
         /* Responsive adjustments */
@@ -811,6 +402,276 @@
             .config-buttons {
                 flex-direction: column;
             }
+        }
+        
+        /* Enhanced UI Styles */
+        .selected-content-area:focus,
+        .selected-text-area:focus {
+            outline: none !important;
+            border-color: #1976d2 !important;
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1) !important;
+        }
+        
+        .action-grid-btn:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+            border-color: #1976d2 !important;
+        }
+        
+        #translation-language:focus {
+            outline: none !important;
+            border-color: #1976d2 !important;
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1) !important;
+        }
+        
+        /* Chat history container enhancement */
+        .chat-history-container {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e9ecef;
+        }
+        
+        /* Result enhancement */
+        .result {
+            margin-top: 15px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: transform 0.2s;
+        }
+        
+        .result:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        }
+        
+        /* Chat Message Styling */
+        .chat-message {
+            margin-bottom: 8px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .chat-message:hover {
+            background: #e9ecef;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .chat-message.selected {
+            background: #e3f2fd;
+            border-color: #1976d2;
+            box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+        }
+        
+        /* User vs Assistant Message Styling */
+        .user-message {
+            background: #e8f5e8;
+            border-color: #4caf50;
+        }
+        
+        .user-message:hover {
+            background: #c8e6c9;
+        }
+        
+        .assistant-message {
+            background: #f3e5f5;
+            border-color: #9c27b0;
+        }
+        
+        .assistant-message:hover {
+            background: #e1bee7;
+        }
+        
+        /* Sender Name Styling */
+        .user-sender {
+            color: #2e7d32;
+            font-weight: 600;
+        }
+        
+        .assistant-sender {
+            color: #7b1fa2;
+            font-weight: 600;
+        }
+        
+        /* Message Header */
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .message-sender {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+        }
+        
+        .sender-icon {
+            font-size: 14px;
+        }
+        
+        .sender-name {
+            font-weight: 600;
+        }
+        
+        .message-timestamp {
+            font-size: 10px;
+            color: #666;
+            opacity: 0.8;
+        }
+        
+        /* Message Content */
+        .message-content {
+            line-height: 1.4;
+            color: #333;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        
+        .message-content .markdown-content {
+            margin: 0;
+        }
+        
+        /* Message Actions */
+        .message-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: flex-end;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .chat-message:hover .message-actions {
+            opacity: 1;
+        }
+        
+        .message-action-btn {
+            background: transparent;
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 4px;
+            padding: 2px 6px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s ease;
+            color: #666;
+        }
+        
+        .message-action-btn:hover {
+            background: rgba(0,0,0,0.1);
+            border-color: #1976d2;
+            color: #1976d2;
+            transform: translateY(-1px);
+        }
+        
+        /* Chat History Container */
+        .chat-history-container {
+            padding: 16px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e9ecef;
+            max-height: 60vh;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+        
+        /* Scrollbar Styling */
+        .chat-history-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .chat-history-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .chat-history-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+        
+        .chat-history-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        /* Image Row Styling */
+        .image-row {
+            margin: 12px 0;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e9ecef;
+            display: none; /* Hidden by default, shown when images are detected */
+        }
+        
+        .image-row.visible {
+            display: block;
+        }
+        
+        .image-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 8px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        
+        .image-item {
+            aspect-ratio: 1;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            background: #f8f9fa;
+        }
+        
+        .image-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-color: #1976d2;
+        }
+        
+        .image-item.selected {
+            border-color: #1976d2;
+            background-color: #e3f2fd;
+            box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+        }
+        
+        .image-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .image-number {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            border: 1px solid #ddd;
+            font-size: 12px;
+            font-weight: bold;
+            color: #666;
         }
     </style>
 </head>
@@ -824,16 +685,25 @@
                 <div class="chat-history-section">
                     <div class="chat-history-container" id="results-container">
                         <div class="welcome-message">
-                            <p>Welcome to your AI Assistant! 🚀</p>
-                            <p>Select text from any webpage, then use the quick actions below to:</p>
-                            <ul>
-                                <li>🎤 <strong>Voice Input</strong> - Recording starts automatically when you open this page!</li>
-                                <li>📋 <strong>Copy</strong> - Click a message or focus textbox, then use this to copy content</li>
-                                <li>🔊 <strong>Read Aloud</strong> - Click a message or focus textbox, then use this to read content</li>
-                                <li>🌐 <strong>Translate</strong> - Use Ctrl+Shift+4 to translate current content to selected language</li>
-                            </ul>
-                            <p><strong>Tip:</strong> Click on any chat message to select it, or focus the textbox to work with its content!</p>
-                            <p><strong>Images:</strong> Click on images below to select them for context. Selected images will have blue borders.</p>
+                            <p>Welcome to <strong>SarvaMitra</strong>, your companion!</p>
+                            <p><strong>Navigation -</strong></p>
+                            <ol>
+                                <li>Use <strong>Tab</strong> key to navigate around chunks.</li>
+                                <li>Use <strong>space</strong> or <strong>enter</strong> keys to select and unselect chunks.</li>
+                            </ol>
+                            <p>Use the shortcuts below to use tools.</p>
+                            <ol>
+                                <li><strong>Ctrl+Shift+1</strong> → Turn microphone on/off</li>
+                                <li><strong>Ctrl+Shift+2</strong> → Send query</li>
+                                <li><strong>Ctrl+Shift+3</strong> → Read Aloud</li>
+                                <li><strong>Ctrl+Shift+4</strong> → Translate</li>
+                            </ol>
+                            <p><strong>Tips:</strong></p>
+                            <ol>
+                                <li><strong>Copy</strong> - Click a message or focus textbox, then use this to copy content</li>
+                                <li><strong>Images:</strong> Click on images below to select them for context.</li>
+                                <li>Selected images will have blue borders.</li>
+                            </ol>
                         </div>
                     </div>
                 </div>
@@ -852,89 +722,79 @@
                     </div>
                 </div>
                 
-                <!-- Chunking Controls Row (Accessibility) -->
-                <div class="chunking-row" id="chunking-row" style="display: block;">
-                    <div class="chunking-container" style="display: flex; flex-direction: column; gap: 8px; padding: 8px; background: #e3f2fd; border: 2px solid #1976d2; border-radius: 6px; margin: 4px 0;">
-                        <!-- Top row: Chunking buttons and info -->
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <button class="action-grid-btn" id="chunk-webpage-btn" title="Enable Keyboard Navigation" style="background: transparent; border: 1px solid #ddd; border-radius: 6px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box;">
-                                <span style="font-size: 16px;">⌨️</span>
-                            </button>
-                            <button class="action-grid-btn" id="clear-chunks-btn" title="Clear Selections" style="background: transparent; border: 1px solid #ddd; border-radius: 6px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box;">
-                                <span style="font-size: 16px;">🗑️</span>
-                            </button>
-                            <div class="chunking-info" style="flex: 1; font-size: 12px; color: #1976d2;">
-                                <div id="chunking-status">Chunking enabled by default. Use Tab to navigate, Enter/Space to select chunks.</div>
-                            </div>
-                        </div>
-                        
-                        <!-- Bottom row: Language dropdown and auto-read toggle -->
-                        <div style="display: flex; align-items: center; gap: 12px; padding-top: 8px; border-top: 1px solid rgba(25, 118, 210, 0.2);">
-                            <!-- Language Dropdown -->
-                            <div style="flex: 1;">
-                                <label for="translation-language" style="display: block; margin-bottom: 4px; font-size: 11px; font-weight: 500; color: #1976d2;">🌐 Translation Language:</label>
-                                <select id="translation-language" style="width: 100%; padding: 4px 6px; border: 1px solid #ced4da; border-radius: 4px; font-size: 11px; background: white;">
-                                    <option value="hi-IN">Hindi (हिंदी)</option>
-                                    <option value="en-IN">English</option>
-                                    <option value="bn-IN">Bengali (বাংলা)</option>
-                                    <option value="gu-IN">Gujarati (ગુજરાતી)</option>
-                                    <option value="kn-IN">Kannada (ಕನ್ನಡ)</option>
-                                    <option value="ml-IN">Malayalam (മലയാളം)</option>
-                                    <option value="mr-IN">Marathi (मराठी)</option>
-                                    <option value="od-IN">Odia (ଓଡ଼ିଆ)</option>
-                                    <option value="pa-IN">Punjabi (ਪੰਜਾਬੀ)</option>
-                                    <option value="ta-IN">Tamil (தமிழ்)</option>
-                                    <option value="te-IN">Telugu (తెలుగు)</option>
-                                    <option value="as-IN">Assamese (অসমীয়া)</option>
-                                    <option value="brx-IN">Bodo (बड़ो)</option>
-                                    <option value="doi-IN">Dogri (डोगरी)</option>
-                                    <option value="kok-IN">Konkani (कोंकणी)</option>
-                                    <option value="ks-IN">Kashmiri (کٲشُر)</option>
-                                    <option value="mai-IN">Maithili (मैथिली)</option>
-                                    <option value="mni-IN">Manipuri (মৈতৈলোন্)</option>
-                                    <option value="ne-IN">Nepali (नेपाली)</option>
-                                    <option value="sa-IN">Sanskrit (संस्कृतम्)</option>
-                                    <option value="sat-IN">Santali (ᱥᱟᱱᱛᱟᱲᱤ)</option>
-                                    <option value="sd-IN">Sindhi (سنڌي)</option>
-                                    <option value="ur-IN">Urdu (اردو)</option>
-                                </select>
-                            </div>
-                            
-                            <!-- Auto-read toggle -->
-                            <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
-                                <input type="checkbox" id="auto-read-toggle" style="margin: 0; width: 14px; height: 14px;">
-                                <label for="auto-read-toggle" style="font-size: 11px; color: #1976d2; margin: 0; cursor: pointer;">🔊 Auto-read</label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
                 <!-- Quick Actions Row (Like Textbox Row) -->
                 <div class="quick-actions-row">
-                    <div class="quick-actions-container" style="display: flex; align-items: stretch; gap: 4px;">
-                        <textarea class="selected-content-area" id="selected-content-textarea" style="flex: 1; height: 38px; min-height: 38px; max-height: 120px; resize: vertical; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; line-height: 1.4; font-family: inherit; margin: 0; box-sizing: border-box; background-color: #f8f9fa;" placeholder="Selected content will appear here..."></textarea>
-                        
-                        <button class="action-grid-btn" id="copy-content-btn" title="Copy Content" style="background: transparent; border: 1px solid #ddd; border-radius: 6px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box;">
-                            <span style="font-size: 16px;">📋</span>
-                        </button>
-                        <button class="action-grid-btn" id="read-content-btn" title="Read Content" style="background: transparent; border: 1px solid #ddd; border-radius: 6px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box;">
-                            <span style="font-size: 16px;">🔊</span>
-                        </button>
+                    <div class="quick-actions-container" style="display: flex; align-items: stretch; width: 100%;">
+                        <!-- Selected content textarea removed -->
                     </div>
                 </div>
                 
                 <!-- Selected Text Area (Bottom) -->
                 <div class="selected-text-section">
-                    <div class="selected-text-container" style="display: flex; align-items: stretch; gap: 4px;">
-                        <textarea class="selected-text-area" id="chat-textarea" style="flex: 1; height: 38px; min-height: 38px; max-height: 120px; resize: vertical; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; line-height: 1.4; font-family: inherit; margin: 0; box-sizing: border-box;"></textarea>
+                    <div class="selected-text-container" style="display: flex; align-items: stretch; width: 100%;">
+                        <textarea class="selected-text-area" id="chat-textarea" style="width: 100%; height: 38px; min-height: 38px; max-height: 120px; resize: vertical; padding: 8px; border: 2px solid #e9ecef; border-radius: 8px; font-size: 13px; line-height: 1.4; font-family: inherit; margin: 0; box-sizing: border-box; transition: border-color 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05);" placeholder="Type your message here..."></textarea>
+                    </div>
+                </div>
+                
+                <!-- Chunking Controls Row (Accessibility) - Moved to bottom -->
+                <div class="chunking-row" id="chunking-row" style="display: block; width: 100%;">
+                    <div class="chunking-container" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: 2px solid #1976d2; border-radius: 8px; margin: 4px 0; box-shadow: 0 4px 12px rgba(25, 118, 210, 0.15); width: 100%; box-sizing: border-box;">
+                        <!-- Language Dropdown -->
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                            <select id="translation-language" style="width: 80px; padding: 4px 6px; border: 2px solid #e9ecef; border-radius: 6px; font-size: 10px; background: white; transition: border-color 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                                <option value="hi-IN">Hindi</option>
+                                <option value="en-IN">English</option>
+                                <option value="bn-IN">Bengali</option>
+                                <option value="gu-IN">Gujarati</option>
+                                <option value="kn-IN">Kannada</option>
+                                <option value="ml-IN">Malayalam</option>
+                                <option value="mr-IN">Marathi</option>
+                                <option value="od-IN">Odia</option>
+                                <option value="pa-IN">Punjabi</option>
+                                <option value="ta-IN">Tamil</option>
+                                <option value="te-IN">Telugu</option>
+                                <option value="as-IN">Assamese</option>
+                                <option value="brx-IN">Bodo</option>
+                                <option value="doi-IN">Dogri</option>
+                                <option value="kok-IN">Konkani</option>
+                                <option value="ks-IN">Kashmiri</option>
+                                <option value="mai-IN">Maithili</option>
+                                <option value="mni-IN">Manipuri</option>
+                                <option value="ne-IN">Nepali</option>
+                                <option value="sa-IN">Sanskrit</option>
+                                <option value="sat-IN">Santali</option>
+                                <option value="sd-IN">Sindhi</option>
+                                <option value="ur-IN">Urdu</option>
+                            </select>
+                            <label style="font-size: 9px; color: #1976d2; text-align: center;">🌐 Language</label>
+                        </div>
                         
-                        <!-- Mic and Send buttons only -->
-                        <button class="action-grid-btn" id="chat-mic-btn" title="Voice Input" style="background: transparent; border: 1px solid #ddd; border-radius: 6px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box;">
-                            <img src="icons/start.png" alt="Start Recording" style="width: 18px; height: 18px;">
-                        </button>
-                        <button class="action-grid-btn" id="chat-enter-btn" title="Send" style="background: transparent; border: 1px solid #ddd; border-radius: 6px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box;">
-                            <img src="icons/send.png" alt="Send" style="width: 18px; height: 18px;">
-                        </button>
+                        <!-- Auto-read toggle -->
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                            <input type="checkbox" id="auto-read-toggle" style="margin: 0; width: 14px; height: 14px; accent-color: #1976d2; transform: scale(1.2);">
+                            <label style="font-size: 9px; color: #1976d2; text-align: center;">🔊 Auto</label>
+                        </div>
+                        
+                        <!-- Copy button -->
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <button class="action-grid-btn" id="copy-content-btn" title="Copy Content" style="background: transparent; border: 2px solid #e9ecef; border-radius: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                                <span style="font-size: 14px;">📋</span>
+                            </button>
+                        </div>
+                        
+                        <!-- Mic button -->
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <button class="action-grid-btn" id="chat-mic-btn" title="Voice Input" style="background: transparent; border: 2px solid #e9ecef; border-radius: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                                <img src="icons/start.png" alt="Start Recording" style="width: 16px; height: 16px;">
+                            </button>
+                        </div>
+                        
+                        <!-- Send button -->
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <button class="action-grid-btn" id="chat-enter-btn" title="Send" style="background: transparent; border: 2px solid #e9ecef; border-radius: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                                <img src="icons/send.png" alt="Send" style="width: 16px; height: 16px;">
+                            </button>
+                        </div>
                     </div>
                 </div>
                 

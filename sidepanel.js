@@ -695,12 +695,13 @@ function addResult(type, title, content, metadata = {}) {
         metadata: metadata
     };
     
-    resultsHistory.unshift(resultItem);
+    // Add to end for chronological order (newest at bottom)
+    resultsHistory.push(resultItem);
     renderResults();
     
-    // Auto-scroll to top
+    // Auto-scroll to bottom for new messages
     const container = document.getElementById('results-container');
-    container.scrollTop = 0;
+    container.scrollTop = container.scrollHeight;
 }
 
 function renderResults() {
@@ -709,16 +710,25 @@ function renderResults() {
     if (resultsHistory.length === 0) {
         container.innerHTML = `
             <div class="welcome-message">
-                <p>Welcome to your AI Assistant! 🚀</p>
-                <p>Select text from any webpage, then use the quick actions below to:</p>
-                <ul>
-                    <li>🎤 <strong>Voice Input</strong> - Recording starts automatically when you open this page!</li>
-                    <li>⌨️ <strong>Keyboard Navigation</strong> - Automatically enabled! Use Tab to navigate paragraphs, Space/Enter to select</li>
-                    <li>📋 <strong>Copy</strong> - Click a message or focus textbox, then use this to copy content</li>
-                    <li>🔊 <strong>Read Aloud</strong> - Click a message or focus textbox, then use this to read content</li>
-                </ul>
-                <p><strong>Accessibility Tip:</strong> Chunking is automatically enabled! Just press Tab to navigate through webpage paragraphs, then Space or Enter to select!</p>
-                <p><strong>Images:</strong> Click on images below to select them for context. Selected images will have blue borders.</p>
+                <p>Welcome to <strong>SarvaMitra</strong>, your companion!</p>
+                <p><strong>Navigation -</strong></p>
+                <ol>
+                    <li>Use <strong>Tab</strong> key to navigate around chunks.</li>
+                    <li>Use <strong>space</strong> or <strong>enter</strong> keys to select and unselect chunks.</li>
+                </ol>
+                <p>Use the shortcuts below to use tools.</p>
+                <ol>
+                    <li><strong>Ctrl+Shift+1</strong> → Turn microphone on/off</li>
+                    <li><strong>Ctrl+Shift+2</strong> → Send query</li>
+                    <li><strong>Ctrl+Shift+3</strong> → Read Aloud</li>
+                    <li><strong>Ctrl+Shift+4</strong> → Translate</li>
+                </ol>
+                <p><strong>Tips:</strong></p>
+                <ol>
+                    <li><strong>Copy</strong> - Click a message or focus textbox, then use this to copy content</li>
+                    <li><strong>Images:</strong> Click on images below to select them for context.</li>
+                    <li>Selected images will have blue borders.</li>
+                </ol>
             </div>
         `;
         return;
@@ -731,21 +741,50 @@ function renderResults() {
         container.innerHTML = `
             <div class="welcome-message">
                 <p>Start a conversation by typing a message and clicking send!</p>
-        </div>
-    `;
+            </div>
+        `;
         return;
     }
     
     const resultsHTML = chatMessages.map(result => {
         const isSelected = result.id === selectedMessageId;
+        const isUser = result.title === 'You';
+        const isAssistant = result.title === 'Assistant';
+        
+        // Determine message styling based on sender
+        let messageClass = 'chat-message';
+        let senderClass = '';
+        let icon = '';
+        
+        if (isUser) {
+            messageClass += ' user-message';
+            senderClass = 'user-sender';
+            icon = '👤';
+        } else if (isAssistant) {
+            messageClass += ' assistant-message';
+            senderClass = 'assistant-sender';
+            icon = '🤖';
+        }
+        
         return `
-            <div class="result-item ${isSelected ? 'selected' : ''}" data-message-id="${result.id}">
-                <div class="result-header">
-                    <span class="result-type">${result.title}</span>
-                    <span class="result-timestamp">${result.timestamp}</span>
+            <div class="${messageClass} ${isSelected ? 'selected' : ''}" data-message-id="${result.id}">
+                <div class="message-header">
+                    <div class="message-sender ${senderClass}">
+                        <span class="sender-icon">${icon}</span>
+                        <span class="sender-name">${result.title}</span>
+                    </div>
+                    <div class="message-timestamp">${result.timestamp}</div>
                 </div>
-                <div class="result-content">
+                <div class="message-content">
                     ${renderMarkdown(result.content)}
+                </div>
+                <div class="message-actions">
+                    <button class="message-action-btn" onclick="copyToClipboard('${escapeHtml(result.content)}')" title="Copy message">
+                        📋
+                    </button>
+                    <button class="message-action-btn" onclick="readAloudResult(${result.id})" title="Read aloud">
+                        🔊
+                    </button>
                 </div>
             </div>
         `;
@@ -754,7 +793,7 @@ function renderResults() {
     container.innerHTML = resultsHTML;
     
     // Add click handlers for message selection
-    container.querySelectorAll('.result-item').forEach(item => {
+    container.querySelectorAll('.chat-message').forEach(item => {
         item.addEventListener('click', () => {
             const messageId = parseInt(item.dataset.messageId);
             selectMessage(messageId);
@@ -1415,11 +1454,11 @@ function renderImageRow() {
     if (!imageRow) return;
     
     if (detectedImages.length === 0) {
-        imageRow.style.display = 'none';
+        imageRow.classList.remove('visible');
         return;
     }
     
-    imageRow.style.display = 'block';
+    imageRow.classList.add('visible');
     
     const imageContainer = document.getElementById('image-container');
     const imagesHTML = detectedImages.map((image, index) => {
@@ -1523,39 +1562,23 @@ function addContextImageUrl(imageUrl) {
 }
 
 function updateSelectedContentTextarea() {
-    const textarea = document.getElementById('selected-content-textarea');
+    const textarea = document.getElementById('chat-textarea');
     if (!textarea) return;
     
-    let content = '';
+    // Don't display any context in the textarea - keep it clean for user input only
+    // Context is stored in background and will be included when sending messages
     
-    // Add context text if available (raw text, no labels)
-    if (chatContext.text) {
-        content += chatContext.text;
-    }
-    
-    // Add a separator if both text and images are present
-    if (chatContext.text && chatContext.image_urls.length > 0) {
-        content += '\n\n';
-    }
-    
-    // Add image count if available (simple format)
-    if (chatContext.image_urls.length > 0) {
-        content += `${chatContext.image_urls.length} image(s) selected`;
-    }
-    
-    textarea.value = content;
-    
-    // Update placeholder to show chunk status
+    // Only update placeholder to show basic status
     if (chatContext.text && chatContext.text.includes('\n\n')) {
         // If text contains multiple paragraphs, it's likely from chunking
         const chunkCount = (chatContext.text.match(/\n\n/g) || []).length + 1;
-        textarea.placeholder = `${chunkCount} chunk(s) selected from webpage`;
+        textarea.placeholder = `${chunkCount} chunk(s) selected`;
     } else if (chatContext.text) {
-        textarea.placeholder = 'Text selected from webpage';
+        textarea.placeholder = 'Text selected';
     } else if (chatContext.image_urls.length > 0) {
         textarea.placeholder = `${chatContext.image_urls.length} image(s) selected`;
     } else {
-        textarea.placeholder = 'Selected content will appear here...';
+        textarea.placeholder = 'Type your message here...';
     }
 }
 
@@ -1563,8 +1586,7 @@ function updateTextboxWithContext() {
     const textarea = document.getElementById('chat-textarea');
     if (!textarea) return;
     
-    // Don't clear the main textbox - preserve user input
-    // Only update the selected content textarea
+    // Only update the placeholder to show context status, don't modify textarea content
     updateSelectedContentTextarea();
 }
 
@@ -1572,7 +1594,6 @@ function getCurrentUserMessage() {
     const textarea = document.getElementById('chat-textarea');
     if (!textarea) return '';
     
-    // Simply return the textarea value since there's no context display
     return textarea.value.trim();
 }
 
