@@ -16,17 +16,44 @@ let selectedChunks = new Set();
 
 // Define selectors for meaningful content chunks
 const CHUNK_SELECTORS = [
-    "p",
-    "li", 
-    "blockquote",
+    // Main content containers
     "article",
-    "section",
-    "div:has(> p)",
+    "section", 
     "main",
-    "h1", "h2", "h3", "h4", "h5", "h6",
     ".content",
-    ".text",
-    ".paragraph"
+    ".text-content",
+    ".article-content",
+    ".post-content",
+    ".entry-content",
+    
+    // Headings with their content
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    
+    // Paragraphs and text blocks
+    "p",
+    "blockquote",
+    "pre",
+    "code",
+    
+    // List items (individual items)
+    "li",
+    
+    // Div containers that likely contain meaningful content
+    "div[class*='content']",
+    "div[class*='text']", 
+    "div[class*='article']",
+    "div[class*='post']",
+    "div[class*='entry']",
+    "div[class*='body']",
+    "div[class*='description']",
+    "div[class*='summary']",
+    "div[class*='excerpt']",
+    
+    // Common content classes
+    ".paragraph",
+    ".text-block",
+    ".content-block",
+    ".section-content"
 ];
 
 // Inject the permission iframe
@@ -61,57 +88,101 @@ function injectMicrophonePermissionIframe() {
 // Inject the iframe when the content script loads
 injectMicrophonePermissionIframe();
 
-// Listen for messages from the side panel
+// Listen for messages from the extension
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Content script received message:', message);
     
-    if (message.action === 'ping') {
-        console.log('Content script ping received');
-        sendResponse({ success: true, message: 'Content script is loaded' });
-        return true;
+    switch (message.action) {
+        case 'ping':
+            sendResponse({ success: true, message: 'Content script is ready' });
+            break;
+            
+        case 'requestMicrophonePermission':
+            requestMicrophonePermission().then(sendResponse);
+            break;
+            
+        case 'startRecording':
+            startRecording().then(sendResponse);
+            break;
+            
+        case 'stopRecording':
+            stopRecording().then(sendResponse);
+            break;
+            
+        case 'detectImages':
+            detectImages().then(sendResponse);
+            break;
+            
+        case 'focusOnImage':
+            focusOnImage(message.imageId).then(sendResponse);
+            break;
+            
+        case 'chunkWebpage':
+            try {
+                // Enable chunking mode
+                const chunkCount = chunkWebpage();
+                // Auto-focus on first chunk
+                setTimeout(() => autoFocusFirstChunk(), 100);
+                sendResponse({ 
+                    success: true, 
+                    chunkCount: chunkCount,
+                    message: `Created ${chunkCount} chunks for keyboard navigation`
+                });
+            } catch (error) {
+                console.error('Error in chunkWebpage:', error);
+                sendResponse({ 
+                    success: false, 
+                    error: error.message || 'Failed to enable chunking'
+                });
+            }
+            break;
+            
+        case 'clearChunkSelections':
+            // Clear all chunk selections
+            clearChunkSelections();
+            sendResponse({ success: true, message: 'Cleared all chunk selections' });
+            break;
+            
+        case 'getSelectedChunks':
+            // Get all selected chunks
+            const selectedTexts = getSelectedChunks();
+            sendResponse({ 
+                success: true, 
+                selectedTexts: selectedTexts,
+                selectedCount: selectedTexts.length
+            });
+            break;
+            
+        case 'exitChunkNavigation':
+            // Exit chunk navigation mode
+            exitChunkNavigation();
+            sendResponse({ success: true, message: 'Exited chunk navigation mode' });
+            break;
+            
+        case 'getCurrentActiveChunk':
+            // Get the currently active chunk
+            const activeChunk = getCurrentActiveChunk();
+            sendResponse({ 
+                success: true, 
+                chunkText: activeChunk ? activeChunk.text : null,
+                chunkIndex: currentChunkIndex
+            });
+            break;
+            
+        case 'replaceChunkText':
+            // Replace chunk text with translated text
+            const replaceResult = replaceChunkText(message.chunkIndex, message.translatedText);
+            sendResponse({ 
+                success: replaceResult.success, 
+                message: replaceResult.message
+            });
+            break;
+            
+        default:
+            sendResponse({ success: false, error: 'Unknown action' });
     }
     
-    if (message.action === 'startRecording') {
-        startRecording().then(result => {
-            sendResponse(result);
-        });
-        return true; // Keep the message channel open for async response
-    }
-    
-    if (message.action === 'stopRecording') {
-        stopRecording().then(result => {
-            sendResponse(result);
-        });
-        return true;
-    }
-    
-    if (message.action === 'checkMicrophonePermission') {
-        checkMicrophonePermission().then(result => {
-            sendResponse(result);
-        });
-        return true;
-    }
-    
-    if (message.action === 'requestMicrophonePermission') {
-        requestMicrophonePermission().then(result => {
-            sendResponse(result);
-        });
-        return true;
-    }
-    
-    if (message.action === 'detectImages') {
-        detectImages().then(result => {
-            sendResponse(result);
-        });
-        return true;
-    }
-    
-    if (message.action === 'focusOnImage') {
-        focusOnImage(message.imageId).then(result => {
-            sendResponse(result);
-        });
-        return true;
-    }
+    return true; // Keep message channel open for async responses
 });
 
 async function requestMicrophonePermission() {
@@ -283,7 +354,7 @@ async function detectImages() {
             // More strict visibility checks
             const isVisible = rect.width > 0 && rect.height > 0;
             const isLargeEnough = rect.width >= 50 && rect.height >= 50;
-            const hasSrc = img.src && img.src.trim() !== '';
+            const hasSrc = img.src && typeof img.src === 'string' && img.src.trim() !== '';
             
             // Check if image is actually in viewport or close to it
             const isInViewport = rect.top < window.innerHeight && rect.bottom > 0;
@@ -427,47 +498,33 @@ function chunkWebpage() {
         el.removeAttribute('data-sarvam-chunk-id');
     });
     
-    // Find all potential chunks
-    const allElements = Array.from(document.querySelectorAll(CHUNK_SELECTORS.join(',')));
+    // Find all potential chunks using improved algorithm
+    const chunks = findMeaningfulChunks();
     
-    // Filter and process chunks
-    allElements.forEach((element, index) => {
-        const text = element.innerText.trim();
-        
-        // Skip if too short, hidden, or already processed
-        if (text.length < 20 || 
-            element.offsetParent === null || 
-            element.style.display === 'none' ||
-            element.style.visibility === 'hidden' ||
-            element.classList.contains('sarvam-chunk-highlight')) {
-            return;
-        }
-        
-        // Skip if element is inside another chunk
-        if (element.closest('.sarvam-chunk-highlight')) {
-            return;
-        }
-        
-        // Create chunk object
-        const chunk = {
+    // Process and add chunks
+    chunks.forEach((chunk, index) => {
+        const chunkObj = {
             id: `chunk-${index}`,
-            element: element,
-            text: text,
-            index: webpageChunks.length
+            element: chunk.element,
+            text: chunk.text,
+            index: webpageChunks.length,
+            type: chunk.type,
+            level: chunk.level
         };
         
-        webpageChunks.push(chunk);
+        webpageChunks.push(chunkObj);
         
         // Make element focusable and add styling
-        element.setAttribute('tabindex', '0');
-        element.setAttribute('data-sarvam-chunk-id', chunk.id);
-        element.classList.add('sarvam-chunk-highlight');
+        chunk.element.setAttribute('tabindex', '0');
+        chunk.element.setAttribute('data-sarvam-chunk-id', chunkObj.id);
+        chunk.element.setAttribute('data-chunk-type', chunk.type);
+        chunk.element.classList.add('sarvam-chunk-highlight');
         
         // Add click handler for mouse users
-        element.addEventListener('click', (e) => {
+        chunk.element.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            toggleChunkSelection(chunk.id);
+            toggleChunkSelection(chunkObj.id);
         });
     });
     
@@ -480,6 +537,318 @@ function chunkWebpage() {
     addChunkStyles();
     
     return webpageChunks.length;
+}
+
+// Improved function to find meaningful chunks - COMPREHENSIVE VERSION
+function findMeaningfulChunks() {
+    const chunks = [];
+    
+    // Strategy 1: Find ALL content areas comprehensively
+    const allContentAreas = findAllContentAreas();
+    allContentAreas.forEach(area => {
+        const areaChunks = extractChunksFromAreaComprehensive(area);
+        chunks.push(...areaChunks);
+    });
+    
+    // Strategy 2: Find ANY remaining content elements not already processed
+    const remainingChunks = findRemainingContent();
+    chunks.push(...remainingChunks);
+    
+    // Strategy 3: Add filtered images as chunks
+    const imageChunks = createImageChunks();
+    chunks.push(...imageChunks);
+    
+    // Strategy 4: Group related content intelligently
+    const groupedChunks = groupRelatedContentIntelligently(chunks);
+    
+    // Strategy 5: Final cleanup and deduplication
+    return finalizeChunks(groupedChunks);
+}
+
+// Find ALL content areas comprehensively
+function findAllContentAreas() {
+    const areas = [];
+    
+    // 1. Standard content selectors
+    const standardSelectors = [
+        'main', 'article', 'section', 'aside',
+        '.content', '.main-content', '.article-content', '.post-content', '.entry-content',
+        '#content', '#main', '#article',
+        '[role="main"]', '[role="article"]', '[role="contentinfo"]'
+    ];
+    
+    standardSelectors.forEach(selector => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(el => {
+            if (isVisibleElement(el) && hasSignificantContent(el)) {
+                areas.push(el);
+            }
+        });
+    });
+    
+    // 2. Find content by class patterns
+    const classPatterns = [
+        'div[class*="content"]', 'div[class*="text"]', 'div[class*="article"]',
+        'div[class*="post"]', 'div[class*="entry"]', 'div[class*="body"]',
+        'div[class*="description"]', 'div[class*="summary"]', 'div[class*="excerpt"]'
+    ];
+    
+    classPatterns.forEach(pattern => {
+        const elements = document.querySelectorAll(pattern);
+        elements.forEach(el => {
+            if (isVisibleElement(el) && hasSignificantContent(el) && !el.closest('.sarvam-chunk-highlight')) {
+                areas.push(el);
+            }
+        });
+    });
+    
+    // 3. Find content by text density (divs with lots of text)
+    const allDivs = document.querySelectorAll('div');
+    allDivs.forEach(div => {
+        if (isVisibleElement(div) && hasSignificantContent(div) && 
+            !div.closest('.sarvam-chunk-highlight') && 
+            !areas.includes(div) &&
+            div.children.length < 20 && // Avoid navigation/header divs
+            (div.innerText || div.textContent || '').trim().length > 100) { // Must have substantial text
+            areas.push(div);
+        }
+    });
+    
+    // 4. If no areas found, use body as fallback
+    if (areas.length === 0) {
+        areas.push(document.body);
+    }
+    
+    // 5. Remove duplicates and nested areas
+    const uniqueAreas = [];
+    areas.forEach(area => {
+        const isNested = uniqueAreas.some(existing => existing.contains(area));
+        const containsExisting = uniqueAreas.some(existing => area.contains(existing));
+        
+        if (!isNested && !containsExisting) {
+            uniqueAreas.push(area);
+        } else if (containsExisting) {
+            // Replace parent with child if child has more specific content
+            const index = uniqueAreas.findIndex(existing => area.contains(existing));
+            if (index !== -1) {
+                uniqueAreas[index] = area;
+            }
+        }
+    });
+    
+    return uniqueAreas;
+}
+
+// Comprehensive chunk extraction from any area
+function extractChunksFromAreaComprehensive(area) {
+    const chunks = [];
+    
+    // Get ALL text-containing elements in the area
+    const allElements = area.querySelectorAll('*');
+    const textElements = [];
+    
+    allElements.forEach(element => {
+        // Skip if already processed
+        if (element.closest('.sarvam-chunk-highlight')) {
+            return;
+        }
+        
+        const text = element.innerText || element.textContent || '';
+        if (text.trim().length > 20 && isVisibleElement(element) && hasSignificantContent(element)) {
+            textElements.push({
+                element: element,
+                text: text,
+                tagName: element.tagName.toLowerCase(),
+                isHeading: isHeading(element),
+                depth: getElementDepth(element)
+            });
+        }
+    });
+    
+    // Sort by DOM depth to process in order
+    textElements.sort((a, b) => a.depth - b.depth);
+    
+    // Group content by headings and create chunks
+    let currentChunk = null;
+    let processedElements = new Set();
+    
+    for (let i = 0; i < textElements.length; i++) {
+        const item = textElements[i];
+        
+        // Skip if already processed
+        if (processedElements.has(item.element)) {
+            continue;
+        }
+        
+        if (item.isHeading) {
+            // Save previous chunk
+            if (currentChunk && currentChunk.text.trim().length > 20) {
+                chunks.push(currentChunk);
+            }
+            
+            // Start new chunk with heading
+            currentChunk = {
+                element: item.element,
+                text: item.text,
+                type: 'heading',
+                level: parseInt(item.tagName.charAt(1))
+            };
+            processedElements.add(item.element);
+        } else {
+            // Check if this element is part of a heading's content
+            const parentHeading = findParentHeading(item.element);
+            
+            if (parentHeading && currentChunk && currentChunk.element === parentHeading) {
+                // Add to current heading chunk
+                currentChunk.text += '\n\n' + item.text;
+                currentChunk.element = item.element; // Update focus element
+                processedElements.add(item.element);
+            } else if (currentChunk && !parentHeading) {
+                // Add to current chunk if no heading relationship
+                currentChunk.text += '\n\n' + item.text;
+                currentChunk.element = item.element;
+                processedElements.add(item.element);
+            } else {
+                // Create standalone chunk
+                chunks.push({
+                    element: item.element,
+                    text: item.text,
+                    type: item.tagName,
+                    level: 0
+                });
+                processedElements.add(item.element);
+                currentChunk = null;
+            }
+        }
+    }
+    
+    // Add the last chunk
+    if (currentChunk && currentChunk.text.trim().length > 20) {
+        chunks.push(currentChunk);
+    }
+    
+    return chunks;
+}
+
+// Find remaining content not already processed
+function findRemainingContent() {
+    const chunks = [];
+    const processedElements = document.querySelectorAll('.sarvam-chunk-highlight');
+    const processedSet = new Set(Array.from(processedElements));
+    
+    // Find any remaining text elements
+    const allElements = document.querySelectorAll('p, div, span, article, section, aside');
+    
+    allElements.forEach(element => {
+        if (processedSet.has(element) || element.closest('.sarvam-chunk-highlight')) {
+            return;
+        }
+        
+        const text = element.innerText.trim();
+        if (text.length > 50 && isVisibleElement(element) && hasSignificantContent(element)) {
+            // Check if this element contains meaningful content
+            const hasRealContent = text.split(' ').length > 5; // At least 5 words
+            
+            if (hasRealContent) {
+                chunks.push({
+                    element: element,
+                    text: text,
+                    type: element.tagName.toLowerCase(),
+                    level: 0
+                });
+            }
+        }
+    });
+    
+    return chunks;
+}
+
+// Find parent heading for an element
+function findParentHeading(element) {
+    let current = element.parentElement;
+    while (current && current !== document.body) {
+        if (isHeading(current)) {
+            return current;
+        }
+        current = current.parentElement;
+    }
+    return null;
+}
+
+// Get element depth in DOM
+function getElementDepth(element) {
+    let depth = 0;
+    let current = element.parentElement;
+    while (current && current !== document.body) {
+        depth++;
+        current = current.parentElement;
+    }
+    return depth;
+}
+
+// Intelligent content grouping
+function groupRelatedContentIntelligently(chunks) {
+    const grouped = [];
+    let currentGroup = null;
+    
+    chunks.forEach(chunk => {
+        if (chunk.type === 'heading' && chunk.level <= 3) {
+            // Start new group for major headings
+            if (currentGroup && currentGroup.text && currentGroup.text.trim().length > 20) {
+                grouped.push(currentGroup);
+            }
+            currentGroup = chunk;
+        } else if (chunk.type === 'image') {
+            // Images are standalone
+            if (currentGroup && currentGroup.text && currentGroup.text.trim().length > 20) {
+                grouped.push(currentGroup);
+            }
+            grouped.push(chunk);
+            currentGroup = null;
+        } else if (currentGroup && chunk.type !== 'heading') {
+            // Add to current group
+            currentGroup.text += '\n\n' + chunk.text;
+            currentGroup.element = chunk.element;
+        } else {
+            // Standalone chunk
+            if (currentGroup && currentGroup.text && currentGroup.text.trim().length > 20) {
+                grouped.push(currentGroup);
+            }
+            grouped.push(chunk);
+            currentGroup = null;
+        }
+    });
+    
+    if (currentGroup && currentGroup.text && currentGroup.text.trim().length > 20) {
+        grouped.push(currentGroup);
+    }
+    
+    return grouped;
+}
+
+// Final chunk processing and deduplication
+function finalizeChunks(chunks) {
+    const finalChunks = [];
+    const seenTexts = new Set();
+    
+    chunks.forEach(chunk => {
+        const text = chunk.text || '';
+        if (text.trim().length > 5) {
+            // Skip if duplicate content
+            if (seenTexts.has(text)) return;
+            
+            // Skip navigation/advertisement content
+            if (isNavigationElement(chunk.element)) return;
+            
+            // Skip hidden elements
+            if (!isVisibleElement(chunk.element)) return;
+            
+            seenTexts.add(text);
+            finalChunks.push(chunk);
+        }
+    });
+    
+    return finalChunks;
 }
 
 // Function to setup keyboard navigation
@@ -617,7 +986,22 @@ function sendChunkSelectionUpdate() {
 
 // Announce chunk to screen readers
 function announceChunk(chunk) {
-    const announcement = `Chunk ${chunk.index + 1} of ${webpageChunks.length}. ${chunk.text.substring(0, 100)}...`;
+    let announcement = `Chunk ${chunk.index + 1} of ${webpageChunks.length}`;
+    
+    // Add chunk type information
+    if (chunk.type === 'heading') {
+        announcement += `. Heading level ${chunk.level}`;
+    } else if (chunk.type === 'image') {
+        announcement += `. Image`;
+    } else if (chunk.type === 'content-div') {
+        announcement += `. Content section`;
+    } else {
+        announcement += `. ${chunk.type} element`;
+    }
+    
+    // Add content preview
+    const preview = chunk.text.substring(0, 100).replace(/\n/g, ' ');
+    announcement += `. ${preview}...`;
     
     // Create temporary announcement element
     const announcer = document.createElement('div');
@@ -661,43 +1045,151 @@ function addChunkStyles() {
     style.id = styleId;
     style.textContent = `
         .sarvam-chunk-highlight {
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
             cursor: pointer;
-            border-radius: 4px;
-            padding: 2px;
-            margin: 1px 0;
+            border-radius: 8px;
+            padding: 8px;
+            margin: 4px 0;
+            position: relative;
+            border: 2px solid transparent;
         }
         
         .sarvam-chunk-highlight:hover {
-            background-color: rgba(0, 188, 212, 0.1);
-            outline: 1px solid rgba(0, 188, 212, 0.3);
+            background-color: rgba(0, 188, 212, 0.08);
+            border-color: rgba(0, 188, 212, 0.3);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 188, 212, 0.15);
         }
         
         .sarvam-chunk-highlight:focus {
-            outline: 2px solid #00bcd4 !important;
-            background-color: rgba(0, 188, 212, 0.15) !important;
-            box-shadow: 0 0 0 2px rgba(0, 188, 212, 0.2) !important;
+            outline: none;
+            border-color: #00bcd4 !important;
+            background-color: rgba(0, 188, 212, 0.12) !important;
+            box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.25) !important;
+            transform: translateY(-2px);
         }
         
         .sarvam-chunk-focused {
-            outline: 3px solid #1976d2 !important;
-            background-color: rgba(25, 118, 210, 0.1) !important;
-            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.3) !important;
+            outline: none !important;
+            border-color: #1976d2 !important;
+            background-color: rgba(25, 118, 210, 0.15) !important;
+            box-shadow: 0 0 0 4px rgba(25, 118, 210, 0.3) !important;
+            transform: translateY(-2px);
         }
         
         .sarvam-chunk-selected {
-            outline: 2px solid #4caf50 !important;
-            background-color: rgba(76, 175, 80, 0.1) !important;
-            border-left: 4px solid #4caf50 !important;
+            border-color: #4caf50 !important;
+            background-color: rgba(76, 175, 80, 0.12) !important;
+            border-left-width: 6px !important;
+            position: relative;
+        }
+        
+        .sarvam-chunk-selected::before {
+            content: "✓";
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #4caf50;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
         }
         
         .sarvam-chunk-selected.sarvam-chunk-focused {
-            outline: 3px solid #1976d2 !important;
-            background-color: rgba(76, 175, 80, 0.15) !important;
+            border-color: #1976d2 !important;
+            background-color: rgba(76, 175, 80, 0.18) !important;
+            box-shadow: 0 0 0 4px rgba(25, 118, 210, 0.3), 0 2px 8px rgba(76, 175, 80, 0.2) !important;
+        }
+        
+        /* Special styling for heading chunks */
+        .sarvam-chunk-highlight[data-chunk-type="heading"] {
+            background-color: rgba(255, 193, 7, 0.05);
+            border-left: 4px solid #ffc107;
+        }
+        
+        .sarvam-chunk-highlight[data-chunk-type="heading"]:hover {
+            background-color: rgba(255, 193, 7, 0.1);
+            border-color: #ffc107;
+        }
+        
+        .sarvam-chunk-highlight[data-chunk-type="heading"].sarvam-chunk-focused {
+            background-color: rgba(255, 193, 7, 0.15) !important;
+            border-color: #1976d2 !important;
+        }
+        
+        /* Special styling for image chunks */
+        .sarvam-chunk-highlight[data-chunk-type="image"] {
+            background-color: rgba(255, 87, 34, 0.05);
+            border-left: 4px solid #ff5722;
+            border-radius: 12px;
+            padding: 12px;
+        }
+        
+        .sarvam-chunk-highlight[data-chunk-type="image"]:hover {
+            background-color: rgba(255, 87, 34, 0.1);
+            border-color: #ff5722;
+            transform: scale(1.02);
+        }
+        
+        .sarvam-chunk-highlight[data-chunk-type="image"].sarvam-chunk-focused {
+            background-color: rgba(255, 87, 34, 0.15) !important;
+            border-color: #1976d2 !important;
+            transform: scale(1.02);
+        }
+        
+        .sarvam-chunk-highlight[data-chunk-type="image"].sarvam-chunk-selected {
+            background-color: rgba(255, 87, 34, 0.12) !important;
+            border-color: #4caf50 !important;
+        }
+        
+        /* Special styling for content div chunks */
+        .sarvam-chunk-highlight[data-chunk-type="content-div"] {
+            background-color: rgba(156, 39, 176, 0.05);
+            border-left: 4px solid #9c27b0;
+        }
+        
+        .sarvam-chunk-highlight[data-chunk-type="content-div"]:hover {
+            background-color: rgba(156, 39, 176, 0.1);
+            border-color: #9c27b0;
+        }
+        
+        .sarvam-chunk-highlight[data-chunk-type="content-div"].sarvam-chunk-focused {
+            background-color: rgba(156, 39, 176, 0.15) !important;
+            border-color: #1976d2 !important;
+        }
+        
+        /* Ensure images in image chunks are properly styled */
+        .sarvam-chunk-highlight[data-chunk-type="image"] img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            display: block;
+            margin: 0 auto;
+        }
+        
+        /* Responsive design for chunks */
+        @media (max-width: 768px) {
+            .sarvam-chunk-highlight {
+                padding: 6px;
+                margin: 2px 0;
+                border-radius: 6px;
+            }
+            
+            .sarvam-chunk-highlight[data-chunk-type="image"] {
+                padding: 8px;
+                border-radius: 8px;
+            }
         }
     `;
     
     document.head.appendChild(style);
+    console.log('Chunk styles added');
 }
 
 // Function to get all selected chunks
@@ -715,4 +1207,133 @@ function clearChunkSelections() {
         chunk.element.classList.remove('sarvam-chunk-selected');
     });
     sendChunkSelectionUpdate();
+}
+
+// Auto-focus on first chunk when chunking is enabled
+function autoFocusFirstChunk() {
+    if (webpageChunks.length > 0) {
+        currentChunkIndex = 0;
+        const firstChunk = webpageChunks[0];
+        firstChunk.element.classList.add('sarvam-chunk-focused');
+        firstChunk.element.focus();
+        announceChunk(firstChunk);
+        console.log(`Auto-focused on first chunk: ${firstChunk.text.substring(0, 50)}...`);
+    }
+}
+
+// Get the currently active chunk
+function getCurrentActiveChunk() {
+    if (currentChunkIndex >= 0 && currentChunkIndex < webpageChunks.length) {
+        return webpageChunks[currentChunkIndex];
+    }
+    return null;
+}
+
+// Create chunks from filtered images
+function createImageChunks() {
+    const chunks = [];
+    
+    // Get all images that have been detected and filtered
+    const filteredImages = document.querySelectorAll('img[data-sarvam-image-id]');
+    
+    filteredImages.forEach((img, index) => {
+        const imageId = img.getAttribute('data-sarvam-image-id');
+        const altText = img.alt || img.title || 'Image';
+        const src = img.src;
+        
+        // Create a chunk for each filtered image
+        chunks.push({
+            element: img,
+            text: `[Image: ${altText}] - ${src}`,
+            type: 'image',
+            level: 0,
+            imageId: imageId,
+            imageUrl: src
+        });
+    });
+    
+    return chunks;
+}
+
+// Helper function to check if element is visible
+function isVisibleElement(element) {
+    const style = window.getComputedStyle(element);
+    return style.display !== 'none' && 
+           style.visibility !== 'hidden' && 
+           element.offsetParent !== null &&
+           element.offsetWidth > 0 &&
+           element.offsetHeight > 0;
+}
+
+// Helper function to check if element has significant content
+function hasSignificantContent(element) {
+    if (!element) return false;
+    
+    const text = element.innerText || element.textContent || '';
+    return text.trim().length > 10;
+}
+
+// Helper function to check if element is a heading
+function isHeading(element) {
+    return /^h[1-6]$/i.test(element.tagName);
+}
+
+// Helper function to check if element is navigation
+function isNavigationElement(element) {
+    const navSelectors = [
+        'nav',
+        '.nav',
+        '.navigation',
+        '.menu',
+        '.header',
+        '.footer',
+        '.sidebar',
+        '.advertisement',
+        '.ad',
+        '[role="navigation"]',
+        '[role="banner"]',
+        '[role="contentinfo"]'
+    ];
+    
+    return navSelectors.some(selector => 
+        element.matches(selector) || element.closest(selector)
+    );
+}
+
+// Replace chunk text with translated text
+function replaceChunkText(chunkIndex, translatedText) {
+    try {
+        console.log(`Replacing chunk ${chunkIndex} with translated text:`, translatedText);
+        
+        if (chunkIndex < 0 || chunkIndex >= webpageChunks.length) {
+            return { success: false, message: 'Invalid chunk index' };
+        }
+        
+        const chunk = webpageChunks[chunkIndex];
+        if (!chunk || !chunk.element) {
+            return { success: false, message: 'Chunk element not found' };
+        }
+        
+        // Replace the text content of the chunk element
+        const element = chunk.element;
+        
+        // Handle different types of elements
+        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+            // For input/textarea elements, update the value
+            element.value = translatedText;
+        } else {
+            // For other elements, update the text content
+            element.textContent = translatedText;
+        }
+        
+        // Update the chunk object to reflect the change
+        chunk.text = translatedText;
+        
+        console.log(`Successfully replaced chunk ${chunkIndex} text`);
+        return { success: true, message: 'Chunk text replaced successfully' };
+        
+    } catch (error) {
+        console.error('Error replacing chunk text:', error);
+        return { success: false, message: error.message };
+    }
 } 

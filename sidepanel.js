@@ -64,7 +64,6 @@ async function ensureContentScriptAvailable(tabId) {
 
 // --- Voice Input State for Chat Page ---
 let isRecordingAudio = false;
-let autoRecordingStarted = false; // Flag to prevent multiple auto-starts
 
 // --- MediaRecorder-based Voice Input for Chat Page ---
 let mediaRecorder = null;
@@ -170,14 +169,46 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         if (message.action === 'readAloud') {
-            console.log('Sidepanel received readAloud command');
-            const readAloudBtn = document.getElementById('read-content-btn');
-            if (readAloudBtn) {
-                console.log('Found read aloud button, clicking it');
-                readAloudBtn.click();
-            } else {
-                console.log('Read aloud button not found in DOM');
-            }
+            console.log('Read aloud action received');
+            // Handle async operation properly
+            handleReadAloud().then(() => {
+                sendResponse({ success: true });
+            }).catch(error => {
+                console.error('Read aloud error:', error);
+                sendResponse({ success: false, error: error.message });
+            });
+            return true; // Keep message channel open for async response
+        }
+        
+        if (message.action === 'translate') {
+            console.log('Translate action received');
+            // Handle async operation properly
+            handleTranslate().then(() => {
+                sendResponse({ success: true });
+            }).catch(error => {
+                console.error('Translate error:', error);
+                sendResponse({ success: false, error: error.message });
+            });
+            return true; // Keep message channel open for async response
+        }
+        
+        if (message.action === 'enableChunking') {
+            console.log('Enable chunking action received');
+            // Handle async operation properly
+            handleEnableChunking().then(() => {
+                sendResponse({ success: true });
+            }).catch(error => {
+                console.error('Enable chunking error:', error);
+                sendResponse({ success: false, error: error.message });
+            });
+            return true; // Keep message channel open for async response
+        }
+        
+        // Handle chunk selection updates
+        if (message.action === 'chunkSelectionsUpdated') {
+            console.log('Received chunk selections update:', message);
+            updateChunkingStatus(message.selectedCount, message.totalChunks);
+            updateContextWithChunks(message.selectedTexts);
             sendResponse({ success: true });
         }
         
@@ -192,15 +223,38 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
     
-    // Auto-start voice recording when page loads
-    autoStartVoiceRecording();
-    
     // Initialize the textbox with context system
     updateTextboxWithContext();
     
     // Always detect images on the current page when sidebar opens
     // This runs regardless of whether text was selected or sidebar was opened manually
     detectImagesOnPage(); // Removed the setTimeout delay
+    
+    // Auto-enable chunking for accessibility (enabled by default)
+    setTimeout(() => {
+        console.log('Starting auto-enable chunking...');
+        autoEnableChunking();
+    }, 500); // Reduced delay for faster chunking
+    
+    // Also try again after a longer delay in case the first attempt fails
+    setTimeout(() => {
+        console.log('Retry auto-enable chunking...');
+        autoEnableChunking();
+    }, 2000);
+    
+    // Load chunking state if available
+    loadChunkingState();
+    
+    // Add language dropdown change listener
+    const languageSelect = document.getElementById('translation-language');
+    if (languageSelect) {
+        languageSelect.addEventListener('change', (e) => {
+            const selectedLanguage = e.target.value;
+            const languageName = e.target.options[e.target.selectedIndex].text;
+            console.log('Translation language changed to:', selectedLanguage, languageName);
+            showNotification(`Translation language set to ${languageName}`, 'info', 1500);
+        });
+    }
 });
 
 // Setup Event Listeners
@@ -295,6 +349,30 @@ function setupEventListeners() {
                 // Step 5: Add AI response to chat history when it arrives
                 addResult('chat', 'Assistant', answer, {});
                 
+                // Step 6: Automatically read the assistant response aloud
+                try {
+                    // Check if auto-read is enabled
+                    const autoReadToggle = document.getElementById('auto-read-toggle');
+                    if (autoReadToggle && autoReadToggle.checked) {
+                        console.log('Reading assistant response aloud...');
+                        // Add a small delay to ensure UI has updated
+                        setTimeout(async () => {
+                            try {
+                                await executeReadAloud(answer);
+                                showNotification('Reading response aloud', 'info');
+                            } catch (error) {
+                                console.error('Failed to read response aloud:', error);
+                                // Don't show error notification for auto-read to avoid spam
+                            }
+                        }, 500);
+                    } else {
+                        console.log('Auto-read is disabled, skipping response reading');
+                    }
+                } catch (error) {
+                    console.error('Failed to schedule response reading:', error);
+                    // Don't show error notification for auto-read to avoid spam
+                }
+                
             } catch (error) {
                 console.error('Chat API error:', error);
                 showNotification('Chat failed: ' + error.message, 'error');
@@ -317,19 +395,8 @@ function setupEventListeners() {
                 readAloudBtn.style.background = 'transparent';
             }, 200);
             
-            const textarea = document.getElementById('selected-content-textarea');
-            console.log('Selected content textarea found:', !!textarea);
-            if (textarea) {
-                console.log('Textarea value:', textarea.value);
-                console.log('Textarea value trimmed:', textarea.value.trim());
-            }
-            if (textarea && textarea.value.trim()) {
-                console.log('Executing read aloud with text:', textarea.value);
-                executeReadAloud(textarea.value);
-            } else {
-                console.log('No content to read, showing warning');
-                showNotification('No content to read', 'warning');
-            }
+            // Use the smart read function that handles both chunks and selected content
+            readCurrentActiveContent();
         });
     }
 
@@ -360,6 +427,27 @@ function setupEventListeners() {
         });
     }
     
+    // Chunking Controls
+    const chunkWebpageBtn = document.getElementById('chunk-webpage-btn');
+    const clearChunksBtn = document.getElementById('clear-chunks-btn');
+    
+    console.log('Chunk webpage button found:', !!chunkWebpageBtn);
+    console.log('Clear chunks button found:', !!clearChunksBtn);
+    
+    if (chunkWebpageBtn) {
+        chunkWebpageBtn.addEventListener('click', async () => {
+            console.log('Chunk webpage button clicked');
+            await enableChunking();
+        });
+    }
+    
+    if (clearChunksBtn) {
+        clearChunksBtn.addEventListener('click', async () => {
+            console.log('Clear chunks button clicked');
+            await clearChunkSelections();
+        });
+    }
+    
     console.log('Event listeners setup complete');
     
     // Test button functionality after a short delay
@@ -382,6 +470,19 @@ function setupEventListeners() {
         }
         console.log('=== END BUTTON TEST ===');
     }, 1000);
+    
+    // Load auto-read preference
+    const autoReadToggle = document.getElementById('auto-read-toggle');
+    if (autoReadToggle) {
+        chrome.storage.sync.get(['autoReadEnabled'], (result) => {
+            autoReadToggle.checked = result.autoReadEnabled !== false; // Default to true
+        });
+        
+        // Save preference when changed
+        autoReadToggle.addEventListener('change', () => {
+            chrome.storage.sync.set({ autoReadEnabled: autoReadToggle.checked });
+        });
+    }
 }
 
 // Message Display Functions
@@ -517,7 +618,9 @@ async function executeReadAloud(text) {
         }
         
         const response = await callAPI('tts', {
-            text: cleanText
+            text: cleanText,
+            speaker: "anushka",
+            pace: 1.0
         });
         
         if (response.audios && response.audios.length > 0) {
@@ -610,13 +713,14 @@ function renderResults() {
                 <p>Select text from any webpage, then use the quick actions below to:</p>
                 <ul>
                     <li>🎤 <strong>Voice Input</strong> - Recording starts automatically when you open this page!</li>
-                    <li>⬇️ <strong>Move to Input</strong> - Click a message or focus textbox, then use this to copy content</li>
+                    <li>⌨️ <strong>Keyboard Navigation</strong> - Automatically enabled! Use Tab to navigate paragraphs, Space/Enter to select</li>
                     <li>📋 <strong>Copy</strong> - Click a message or focus textbox, then use this to copy content</li>
                     <li>🔊 <strong>Read Aloud</strong> - Click a message or focus textbox, then use this to read content</li>
                 </ul>
-                <p><strong>Tip:</strong> Click on any chat message to select it, or focus the textbox to work with its content!</p>
-        </div>
-    `;
+                <p><strong>Accessibility Tip:</strong> Chunking is automatically enabled! Just press Tab to navigate through webpage paragraphs, then Space or Enter to select!</p>
+                <p><strong>Images:</strong> Click on images below to select them for context. Selected images will have blue borders.</p>
+            </div>
+        `;
         return;
     }
     
@@ -711,7 +815,8 @@ async function callAPI(endpoint, data) {
     const apis = {
         chat: `${baseURL}/chat`,
         tts: `${baseURL}/tts`,
-        detect: `${baseURL}/detect`
+        detect: `${baseURL}/detect`,
+        translate: `${baseURL}/translate`
     };
     
     try {
@@ -736,7 +841,24 @@ async function callAPI(endpoint, data) {
             if (response.status === 0 || response.status === 503) {
                 throw new Error('Backend server is not running. Please start the FastAPI server first.');
             }
-            throw new Error(`API Error: ${response.status} - ${response.statusText}`);
+            
+            // Try to parse error details for better user feedback
+            let errorMessage = `API Error: ${response.status} - ${response.statusText}`;
+            try {
+                const errorJson = JSON.parse(errorText);
+                if (errorJson.detail) {
+                    errorMessage = errorJson.detail;
+                } else if (errorJson.message) {
+                    errorMessage = errorJson.message;
+                }
+            } catch (e) {
+                // If we can't parse JSON, use the raw error text
+                if (errorText && errorText.length < 200) {
+                    errorMessage = errorText;
+                }
+            }
+            
+            throw new Error(errorMessage);
         }
         
         const result = await response.json();
@@ -752,6 +874,9 @@ async function callAPI(endpoint, data) {
             
             case 'tts':
                 return result; // Returns {audios: ["base64_audio"], request_id: "id"}
+            
+            case 'translate':
+                return result; // Returns {translated_text: "text", source_language_code: "lang", request_id: "id"}
             
             default:
                 return result.response || result.data || result.text || result;
@@ -833,63 +958,6 @@ function showNotification(message, type = 'info', delay = 2000) {
             }
         }, 300);
     }, delay);
-}
-
-// Auto-start voice recording when chat page opens
-async function autoStartVoiceRecording() {
-    // Prevent multiple auto-starts
-    if (autoRecordingStarted || isRecordingAudio) {
-        return;
-    }
-    
-    try {
-        // Get the current active tab
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        
-        if (!tab) {
-            console.log('No active tab found for auto-recording');
-            return;
-        }
-        
-        console.log('Auto-starting voice recording for chat page');
-        
-        // Check if we can inject content script on this page
-        if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:') || tab.url.startsWith('file://')) {
-            console.log('Auto-recording not available on this page type');
-            return;
-        }
-        
-        // Start recording immediately without permission checks
-        const response = await chrome.tabs.sendMessage(tab.id, { action: 'startRecording' });
-        
-        if (response.success) {
-            console.log('Auto-recording started successfully');
-            isRecordingAudio = true;
-            autoRecordingStarted = true;
-            updateVoiceUI('recording');
-            
-            // Update mic button icon to stop
-            const chatMicBtn = document.getElementById('chat-mic-btn');
-            if (chatMicBtn) {
-                const img = chatMicBtn.querySelector('img');
-                if (img) {
-                    img.src = 'icons/stop.png';
-                }
-                
-                // Focus on the mic button so user can stop with spacebar
-                chatMicBtn.focus();
-                console.log('Focused on mic button after auto-start');
-            }
-            
-            showNotification('Voice recording started automatically. Speak now! Press spacebar to stop.', 'info');
-        } else {
-            console.log('Failed to start auto-recording:', response.error);
-        }
-        
-    } catch (error) {
-        console.error('Error in auto-start voice recording:', error);
-        // Don't show error notifications for auto-start to avoid being intrusive
-    }
 }
 
 // --- MediaRecorder-based Voice Input for Chat Page ---
@@ -989,8 +1057,6 @@ async function startVoiceRecording() {
         
         if (error.message.includes('Could not establish connection')) {
             showNotification('Extension not loaded on this page. Please refresh the page and try again.', 'error');
-        } else if (error.message.includes('Microphone permission denied')) {
-            showNotification('Microphone access denied. Please click the microphone icon in the address bar and allow access, or go to Chrome Settings > Privacy and Security > Site Settings > Microphone', 'error');
         } else {
             showNotification('Failed to start recording: ' + error.message, 'error');
         }
@@ -1009,7 +1075,6 @@ function resetVoiceButton() {
         }
     }
     isRecordingAudio = false;
-    autoRecordingStarted = false; // Reset auto-recording flag
     updateVoiceUI('stopped');
 }
 
@@ -1038,7 +1103,6 @@ async function stopRecordingViaContentScript() {
         if (response.success) {
             console.log('Recording stopped successfully, processing audio...');
             isRecordingAudio = false;
-            autoRecordingStarted = false; // Reset auto-recording flag
             updateVoiceUI('stopped');
             
             // Process the audio data
@@ -1480,6 +1544,19 @@ function updateSelectedContentTextarea() {
     }
     
     textarea.value = content;
+    
+    // Update placeholder to show chunk status
+    if (chatContext.text && chatContext.text.includes('\n\n')) {
+        // If text contains multiple paragraphs, it's likely from chunking
+        const chunkCount = (chatContext.text.match(/\n\n/g) || []).length + 1;
+        textarea.placeholder = `${chunkCount} chunk(s) selected from webpage`;
+    } else if (chatContext.text) {
+        textarea.placeholder = 'Text selected from webpage';
+    } else if (chatContext.image_urls.length > 0) {
+        textarea.placeholder = `${chatContext.image_urls.length} image(s) selected`;
+    } else {
+        textarea.placeholder = 'Selected content will appear here...';
+    }
 }
 
 function updateTextboxWithContext() {
@@ -1549,5 +1626,479 @@ function clearImageMap() {
     if (window.sarvamImageMap) {
         window.sarvamImageMap.clear();
         console.log('Image map cleared');
+    }
+}
+
+// --- Chunking Functions for Accessibility ---
+
+// Enable chunking mode
+async function enableChunking() {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tab) {
+            showNotification('No active tab found', 'error');
+            return;
+        }
+        
+        console.log('Enabling chunking for tab:', tab.id);
+        
+        // Check if we can inject content script on this page
+        if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:') || tab.url.startsWith('file://')) {
+            showNotification('Chunking is not available on this page type. Please try on a regular website.', 'error');
+            return;
+        }
+        
+        // Try to enable chunking with retry logic
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        while (retryCount < maxRetries) {
+            try {
+                console.log(`Attempt ${retryCount + 1} to enable chunking`);
+                
+                // First check if content script is available
+                await chrome.tabs.sendMessage(tab.id, { action: 'ping' });
+                console.log('Content script is available, enabling chunking...');
+                
+                // Send message to content script to enable chunking
+                const response = await chrome.tabs.sendMessage(tab.id, { action: 'chunkWebpage' });
+                
+                if (response.success) {
+                    console.log('Chunking enabled:', response.message);
+                    showChunkingControls(true);
+                    updateChunkingStatus(0, response.chunkCount);
+                    updateContextWithChunks([]);
+                    
+                    // Show notification with focus information
+                    if (response.chunkCount > 0) {
+                        showNotification(`Chunking enabled! ${response.chunkCount} chunks available. First chunk auto-focused. Use Tab to navigate, Enter/Space to select.`, 'info');
+                    } else {
+                        showNotification('Chunking enabled but no chunks found on this page.', 'warning');
+                    }
+                    return; // Success, exit the retry loop
+                } else {
+                    throw new Error(response.error || 'Failed to enable chunking');
+                }
+                
+            } catch (error) {
+                retryCount++;
+                console.log(`Chunking attempt ${retryCount} failed:`, error.message);
+                
+                if (error.message.includes('Could not establish connection') || error.message.includes('Receiving end does not exist')) {
+                    // Content script not ready, wait and retry
+                    if (retryCount < maxRetries) {
+                        console.log(`Waiting ${retryCount * 1000}ms before retry...`);
+                        await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+                        
+                        // Try to inject content script if it's not loaded
+                        try {
+                            await chrome.scripting.executeScript({
+                                target: { tabId: tab.id },
+                                files: ['content.js']
+                            });
+                            console.log('Content script injected, will retry...');
+                            await new Promise(resolve => setTimeout(resolve, 500)); // Wait for script to initialize
+                        } catch (injectionError) {
+                            console.log('Failed to inject content script:', injectionError.message);
+                        }
+                    } else {
+                        console.log('Max retries reached, giving up on chunking');
+                        showNotification('Failed to enable chunking: Content script not available. Please refresh the page and try again.', 'error');
+                        return;
+                    }
+                } else {
+                    // Other error, don't retry
+                    console.log('Non-connection error, not retrying:', error.message);
+                    showNotification('Failed to enable chunking: ' + error.message, 'error');
+                    return;
+                }
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error enabling chunking:', error);
+        showNotification('Failed to enable chunking: ' + error.message, 'error');
+    }
+}
+
+// Clear chunk selections
+async function clearChunkSelections() {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tab) {
+            showNotification('No active tab found', 'error');
+            return;
+        }
+        
+        console.log('Clearing chunk selections for tab:', tab.id);
+        
+        // Send message to content script to clear selections
+        const response = await chrome.tabs.sendMessage(tab.id, { action: 'clearChunkSelections' });
+        
+        if (response.success) {
+            console.log('Chunk selections cleared');
+            updateChunkingStatus(0, 0);
+            updateContextWithChunks([]);
+            showNotification('Chunk selections cleared', 'info');
+        } else {
+            throw new Error(response.error || 'Failed to clear chunk selections');
+        }
+        
+    } catch (error) {
+        console.error('Error clearing chunk selections:', error);
+        showNotification('Failed to clear chunk selections: ' + error.message, 'error');
+    }
+}
+
+// Show/hide chunking controls
+function showChunkingControls(show) {
+    const chunkingRow = document.getElementById('chunking-row');
+    const chunkingInstructions = document.getElementById('chunking-instructions');
+    
+    if (chunkingRow) {
+        chunkingRow.style.display = show ? 'block' : 'none';
+    }
+    
+    if (chunkingInstructions) {
+        chunkingInstructions.style.display = show ? 'block' : 'none';
+    }
+}
+
+// Update chunking status display
+function updateChunkingStatus(selectedCount, totalChunks) {
+    const chunkingStatus = document.getElementById('chunking-status');
+    const chunkingInstructions = document.getElementById('chunking-instructions');
+    
+    if (chunkingStatus) {
+        if (totalChunks > 0) {
+            chunkingStatus.innerHTML = `
+                <strong>🎯 Chunking Active:</strong> ${selectedCount} of ${totalChunks} chunks selected
+                ${selectedCount > 0 ? '<br><small>Selected chunks are now in context!</small>' : '<br><small>Use Tab to navigate, Space/Enter to select</small>'}
+            `;
+            chunkingStatus.style.color = selectedCount > 0 ? '#4caf50' : '#1976d2';
+        } else {
+            chunkingStatus.innerHTML = `
+                <strong>⌨️ Keyboard Navigation</strong><br>
+                <small>Should be automatically enabled. Click ⌨️ button if not working.</small>
+            `;
+            chunkingStatus.style.color = '#666';
+        }
+    }
+    
+    if (chunkingInstructions) {
+        chunkingInstructions.style.display = totalChunks > 0 ? 'block' : 'none';
+    }
+}
+
+// Update context with selected chunks
+function updateContextWithChunks(selectedTexts) {
+    if (selectedTexts.length > 0) {
+        // Combine all selected chunks into context text
+        const combinedText = selectedTexts.join('\n\n');
+        setContextText(combinedText);
+        console.log('Updated context with', selectedTexts.length, 'chunks');
+    } else {
+        // Clear context text if no chunks selected
+        chatContext.text = null;
+        updateSelectedContentTextarea();
+        console.log('Cleared context text');
+    }
+}
+
+// Load chunking state on startup
+async function loadChunkingState() {
+    try {
+        const result = await chrome.storage.session.get(['selectedChunks']);
+        const selectedChunks = result.selectedChunks;
+        
+        if (selectedChunks && selectedChunks.texts) {
+            console.log('Loading chunking state:', selectedChunks);
+            showChunkingControls(true);
+            updateChunkingStatus(selectedChunks.count, selectedChunks.totalChunks);
+            updateContextWithChunks(selectedChunks.texts);
+        }
+    } catch (error) {
+        console.error('Error loading chunking state:', error);
+    }
+}
+
+// Auto-enable chunking for accessibility
+async function autoEnableChunking() {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tab) {
+            console.log('No active tab found for auto-chunking');
+            return;
+        }
+        
+        console.log('Auto-enabling chunking for tab:', tab.id);
+        
+        // Check if we can inject content script on this page
+        if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:') || tab.url.startsWith('file://')) {
+            console.log('Auto-chunking not available on this page type');
+            return;
+        }
+        
+        // Try to enable chunking with retry logic
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        while (retryCount < maxRetries) {
+            try {
+                console.log(`Attempt ${retryCount + 1} to auto-enable chunking`);
+                
+                // First check if content script is available
+                await chrome.tabs.sendMessage(tab.id, { action: 'ping' });
+                console.log('Content script is available, enabling chunking...');
+                
+                // Send message to content script to enable chunking
+                const response = await chrome.tabs.sendMessage(tab.id, { action: 'chunkWebpage' });
+                
+                if (response.success) {
+                    console.log('Chunking enabled:', response.message);
+                    showChunkingControls(true);
+                    updateChunkingStatus(0, response.chunkCount);
+                    updateContextWithChunks([]);
+                    
+                    // Show notification with focus information
+                    if (response.chunkCount > 0) {
+                        showNotification(`Chunking enabled! ${response.chunkCount} chunks available. First chunk auto-focused. Use Tab to navigate, Enter/Space to select.`, 'info');
+                    } else {
+                        showNotification('Chunking enabled but no chunks found on this page.', 'warning');
+                    }
+                    return; // Success, exit the retry loop
+                } else {
+                    throw new Error(response.error || 'Failed to enable chunking');
+                }
+                
+            } catch (error) {
+                retryCount++;
+                console.log(`Auto-chunking attempt ${retryCount} failed:`, error.message);
+                
+                if (error.message.includes('Could not establish connection') || error.message.includes('Receiving end does not exist')) {
+                    // Content script not ready, wait and retry
+                    if (retryCount < maxRetries) {
+                        console.log(`Waiting ${retryCount * 1000}ms before retry...`);
+                        await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+                        
+                        // Try to inject content script if it's not loaded
+                        try {
+                            await chrome.scripting.executeScript({
+                                target: { tabId: tab.id },
+                                files: ['content.js']
+                            });
+                            console.log('Content script injected, will retry...');
+                            await new Promise(resolve => setTimeout(resolve, 500)); // Wait for script to initialize
+                        } catch (injectionError) {
+                            console.log('Failed to inject content script:', injectionError.message);
+                        }
+                    } else {
+                        console.log('Max retries reached, giving up on auto-chunking');
+                        // Don't show error notification for auto-enable to avoid spam
+                        return;
+                    }
+                } else {
+                    // Other error, don't retry
+                    console.log('Non-connection error, not retrying:', error.message);
+                    return;
+                }
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error auto-enabling chunking:', error);
+        // Don't show error notification for auto-enable to avoid spam
+        console.log('Auto-enable chunking failed (this is normal for some pages):', error.message);
+    }
+}
+
+// Read whatever content is currently active (chunk or selected content)
+async function readCurrentActiveContent() {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tab) {
+            showNotification('No active tab found', 'error');
+            return;
+        }
+        
+        console.log('Reading current active content for tab:', tab.id);
+        
+        // First, try to get the current active chunk from content script
+        try {
+            const response = await chrome.tabs.sendMessage(tab.id, { action: 'getCurrentActiveChunk' });
+            
+            if (response && response.success && response.chunkText) {
+                console.log('Found active chunk, reading it aloud');
+                executeReadAloud(response.chunkText);
+                showNotification('Reading current chunk aloud', 'info');
+                return;
+            }
+        } catch (error) {
+            console.log('No active chunk found or content script not available:', error.message);
+        }
+        
+        // If no active chunk, fall back to reading selected content
+        const textarea = document.getElementById('selected-content-textarea');
+        if (textarea && textarea.value.trim()) {
+            console.log('Reading selected content aloud');
+            executeReadAloud(textarea.value);
+            showNotification('Reading selected content aloud', 'info');
+        } else {
+            console.log('No content to read');
+            showNotification('No content to read. Select text or navigate to a chunk first.', 'warning');
+        }
+        
+    } catch (error) {
+        console.error('Error reading current active content:', error);
+        showNotification('Failed to read content: ' + error.message, 'error');
+    }
+}
+
+// Handler functions for keyboard shortcuts
+async function handleReadAloud() {
+    console.log('Handling read aloud...');
+    await readCurrentActiveContent();
+}
+
+async function handleTranslate() {
+    console.log('Handling translate...');
+    await translateCurrentActiveContent();
+}
+
+async function handleEnableChunking() {
+    console.log('Handling enable chunking...');
+    await enableChunking();
+}
+
+// Translate current active content
+async function translateCurrentActiveContent() {
+    try {
+        // Get the selected language
+        const languageSelect = document.getElementById('translation-language');
+        const targetLanguage = languageSelect ? languageSelect.value : 'hi-IN';
+        
+        console.log('Target language for translation:', targetLanguage);
+        
+        // Get current active content (chunk or selected text)
+        let textToTranslate = '';
+        let elementToReplace = null;
+        let isChunk = false;
+        
+        // First try to get active chunk
+        const activeChunk = await getCurrentActiveChunk();
+        if (activeChunk && activeChunk.chunkText) {
+            textToTranslate = activeChunk.chunkText;
+            isChunk = true;
+            console.log('Using active chunk for translation:', textToTranslate);
+        } else {
+            // Fallback to selected content
+            const selectedContentTextarea = document.getElementById('selected-content-textarea');
+            if (selectedContentTextarea && selectedContentTextarea.value.trim()) {
+                textToTranslate = selectedContentTextarea.value.trim();
+                elementToReplace = selectedContentTextarea;
+                console.log('Using selected content for translation:', textToTranslate);
+            } else {
+                // Fallback to chat textarea
+                const chatTextarea = document.getElementById('chat-textarea');
+                if (chatTextarea && chatTextarea.value.trim()) {
+                    textToTranslate = chatTextarea.value.trim();
+                    elementToReplace = chatTextarea;
+                    console.log('Using chat textarea for translation:', textToTranslate);
+                }
+            }
+        }
+        
+        if (!textToTranslate.trim()) {
+            showNotification('No content to translate. Please select text or navigate to a chunk first.', 'warning');
+            return;
+        }
+        
+        console.log('Text to translate:', textToTranslate);
+        
+        // Call translation API
+        console.log('Making translation API call with data:', {
+            input: textToTranslate,
+            source_language_code: "auto",
+            target_language_code: targetLanguage,
+            speaker_gender: "Male"
+        });
+        
+        const response = await callAPI('translate', {
+            input: textToTranslate,
+            source_language_code: "auto",
+            target_language_code: targetLanguage,
+            speaker_gender: "Male"
+        });
+        
+        console.log('Translation API response received:', response);
+        
+        if (response && response.translated_text) {
+            console.log('Translation result:', response);
+            
+            // Replace the original text with translated text
+            if (isChunk) {
+                // Replace chunk content in the webpage
+                try {
+                    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                    if (tab) {
+                        await chrome.tabs.sendMessage(tab.id, {
+                            action: 'replaceChunkText',
+                            chunkIndex: activeChunk.chunkIndex,
+                            translatedText: response.translated_text
+                        });
+                        console.log('Replaced chunk text in webpage');
+                    }
+                } catch (error) {
+                    console.error('Failed to replace chunk text:', error);
+                }
+            } else if (elementToReplace) {
+                // Replace textarea content
+                elementToReplace.value = response.translated_text;
+                console.log('Replaced textarea content');
+            }
+            
+            // Add translation result to chat for reference
+            const languageName = languageSelect.options[languageSelect.selectedIndex].text;
+            const resultTitle = `Translation to ${languageName}`;
+            const resultContent = `**Original:** ${textToTranslate}\n\n**Translated:** ${response.translated_text}`;
+            
+            addResult('translation', resultTitle, resultContent, {
+                originalText: textToTranslate,
+                translatedText: response.translated_text,
+                targetLanguage: targetLanguage,
+                sourceLanguage: response.source_language_code
+            });
+            
+            showNotification(`Content translated to ${languageName}`, 'success');
+        } else {
+            throw new Error('No translation result received');
+        }
+        
+    } catch (error) {
+        console.error('Translation error:', error);
+        showNotification(`Translation failed: ${error.message}`, 'error');
+    }
+}
+
+// Get current active chunk from content script
+async function getCurrentActiveChunk() {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) {
+            console.log('No active tab found');
+            return null;
+        }
+        
+        const response = await chrome.tabs.sendMessage(tab.id, { action: 'getCurrentActiveChunk' });
+        console.log('Active chunk response:', response);
+        return response;
+        
+    } catch (error) {
+        console.error('Error getting active chunk:', error);
+        return null;
     }
 }

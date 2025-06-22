@@ -780,6 +780,28 @@
             border-color: #1976d2;
         }
         
+        /* Chunking Controls Row (Accessibility) */
+        .chunking-row {
+            margin-bottom: 8px;
+        }
+        
+        .chunking-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 8px;
+            background: #e3f2fd;
+            border: 2px solid #1976d2;
+            border-radius: 6px;
+            margin: 4px 0;
+        }
+        
+        .chunking-info {
+            flex: 1;
+            font-size: 12px;
+            color: #1976d2;
+        }
+        
         /* Responsive adjustments */
         @media (max-width: 300px) {
             .action-buttons {
@@ -808,6 +830,7 @@
                                 <li>🎤 <strong>Voice Input</strong> - Recording starts automatically when you open this page!</li>
                                 <li>📋 <strong>Copy</strong> - Click a message or focus textbox, then use this to copy content</li>
                                 <li>🔊 <strong>Read Aloud</strong> - Click a message or focus textbox, then use this to read content</li>
+                                <li>🌐 <strong>Translate</strong> - Use Ctrl+Shift+4 to translate current content to selected language</li>
                             </ul>
                             <p><strong>Tip:</strong> Click on any chat message to select it, or focus the textbox to work with its content!</p>
                             <p><strong>Images:</strong> Click on images below to select them for context. Selected images will have blue borders.</p>
@@ -826,6 +849,63 @@
                 <div class="image-row" id="image-row" style="display: none;">
                     <div class="image-container" id="image-container">
                         <!-- Images will be dynamically inserted here -->
+                    </div>
+                </div>
+                
+                <!-- Chunking Controls Row (Accessibility) -->
+                <div class="chunking-row" id="chunking-row" style="display: block;">
+                    <div class="chunking-container" style="display: flex; flex-direction: column; gap: 8px; padding: 8px; background: #e3f2fd; border: 2px solid #1976d2; border-radius: 6px; margin: 4px 0;">
+                        <!-- Top row: Chunking buttons and info -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <button class="action-grid-btn" id="chunk-webpage-btn" title="Enable Keyboard Navigation" style="background: transparent; border: 1px solid #ddd; border-radius: 6px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box;">
+                                <span style="font-size: 16px;">⌨️</span>
+                            </button>
+                            <button class="action-grid-btn" id="clear-chunks-btn" title="Clear Selections" style="background: transparent; border: 1px solid #ddd; border-radius: 6px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box;">
+                                <span style="font-size: 16px;">🗑️</span>
+                            </button>
+                            <div class="chunking-info" style="flex: 1; font-size: 12px; color: #1976d2;">
+                                <div id="chunking-status">Chunking enabled by default. Use Tab to navigate, Enter/Space to select chunks.</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Bottom row: Language dropdown and auto-read toggle -->
+                        <div style="display: flex; align-items: center; gap: 12px; padding-top: 8px; border-top: 1px solid rgba(25, 118, 210, 0.2);">
+                            <!-- Language Dropdown -->
+                            <div style="flex: 1;">
+                                <label for="translation-language" style="display: block; margin-bottom: 4px; font-size: 11px; font-weight: 500; color: #1976d2;">🌐 Translation Language:</label>
+                                <select id="translation-language" style="width: 100%; padding: 4px 6px; border: 1px solid #ced4da; border-radius: 4px; font-size: 11px; background: white;">
+                                    <option value="hi-IN">Hindi (हिंदी)</option>
+                                    <option value="en-IN">English</option>
+                                    <option value="bn-IN">Bengali (বাংলা)</option>
+                                    <option value="gu-IN">Gujarati (ગુજરાતી)</option>
+                                    <option value="kn-IN">Kannada (ಕನ್ನಡ)</option>
+                                    <option value="ml-IN">Malayalam (മലയാളം)</option>
+                                    <option value="mr-IN">Marathi (मराठी)</option>
+                                    <option value="od-IN">Odia (ଓଡ଼ିଆ)</option>
+                                    <option value="pa-IN">Punjabi (ਪੰਜਾਬੀ)</option>
+                                    <option value="ta-IN">Tamil (தமிழ்)</option>
+                                    <option value="te-IN">Telugu (తెలుగు)</option>
+                                    <option value="as-IN">Assamese (অসমীয়া)</option>
+                                    <option value="brx-IN">Bodo (बड़ो)</option>
+                                    <option value="doi-IN">Dogri (डोगरी)</option>
+                                    <option value="kok-IN">Konkani (कोंकणी)</option>
+                                    <option value="ks-IN">Kashmiri (کٲشُر)</option>
+                                    <option value="mai-IN">Maithili (मैथिली)</option>
+                                    <option value="mni-IN">Manipuri (মৈতৈলোন্)</option>
+                                    <option value="ne-IN">Nepali (नेपाली)</option>
+                                    <option value="sa-IN">Sanskrit (संस्कृतम्)</option>
+                                    <option value="sat-IN">Santali (ᱥᱟᱱᱛᱟᱲᱤ)</option>
+                                    <option value="sd-IN">Sindhi (سنڌي)</option>
+                                    <option value="ur-IN">Urdu (اردو)</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Auto-read toggle -->
+                            <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                                <input type="checkbox" id="auto-read-toggle" style="margin: 0; width: 14px; height: 14px;">
+                                <label for="auto-read-toggle" style="font-size: 11px; color: #1976d2; margin: 0; cursor: pointer;">🔊 Auto-read</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 

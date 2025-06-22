@@ -56,6 +56,15 @@ chrome.commands.onCommand.addListener((command) => {
             });
             break;
             
+          case 'translate':
+            console.log('Sending translate command');
+            chrome.runtime.sendMessage({
+              action: 'translate'
+            }).catch(error => {
+              console.log('Failed to send translate command:', error.message);
+            });
+            break;
+            
           default:
             console.log('Unknown command:', command);
         }
@@ -142,10 +151,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep message channel open
   }
   
+  if (message.type === 'chunk_selection_update') {
+    // Handle chunk selection updates from content script
+    console.log('Chunk selection update:', message);
+    
+    // Store selected chunks in session storage
+    chrome.storage.session.set({ 
+      selectedChunks: {
+        texts: message.selectedTexts,
+        count: message.selectedCount,
+        totalChunks: message.totalChunks,
+        timestamp: Date.now()
+      }
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.error("Failed to store chunk selections:", chrome.runtime.lastError);
+      } else {
+        console.log('Chunk selections stored:', message.selectedTexts.length, 'chunks');
+        
+        // Send update to side panel if it's open
+        chrome.runtime.sendMessage({
+          action: 'chunkSelectionsUpdated',
+          selectedTexts: message.selectedTexts,
+          selectedCount: message.selectedCount,
+          totalChunks: message.totalChunks
+        }).catch(error => {
+          // Side panel might not be open, which is fine
+          console.log('Side panel not ready for chunk update:', error.message);
+        });
+      }
+    });
+    
+    sendResponse({ success: true });
+    return true;
+  }
+  
   if (message.action === 'getLastMessage') {
     // Handle request for last message
     chrome.storage.session.get(['lastMessage'], (result) => {
       sendResponse({ lastMessage: result.lastMessage });
+    });
+    return true;
+  }
+  
+  if (message.action === 'getSelectedChunks') {
+    // Handle request for selected chunks
+    chrome.storage.session.get(['selectedChunks'], (result) => {
+      sendResponse({ selectedChunks: result.selectedChunks });
     });
     return true;
   }

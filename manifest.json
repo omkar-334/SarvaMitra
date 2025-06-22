@@ -64,7 +64,14 @@
       "suggested_key": {
         "default": "Ctrl+Shift+3"
       },
-      "description": "Read aloud",
+      "description": "Read aloud current active content (chunk or selected text)",
+      "global": true
+    },
+    "translate": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+4"
+      },
+      "description": "Translate current active content",
       "global": true
     }
   },
