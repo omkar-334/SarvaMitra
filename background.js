@@ -5,6 +5,65 @@ chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch((error) => console.error('Failed to set panel behavior:', error));
 
+// Add keyboard shortcuts for global access
+chrome.commands.onCommand.addListener((command) => {
+  console.log('Keyboard command received:', command);
+  
+  // Get the current active tab
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs.length === 0) {
+      console.log('No active tab found for keyboard command');
+      return;
+    }
+    
+    const tab = tabs[0];
+    console.log('Processing command for tab:', tab.id);
+    
+    // First, ensure the side panel is open
+    chrome.sidePanel.open({ tabId: tab.id }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('Error opening side panel:', chrome.runtime.lastError);
+        return;
+      }
+      
+      // Wait a bit for the side panel to load, then send the command
+      setTimeout(() => {
+        switch (command) {
+          case 'toggle-mic':
+            console.log('Sending toggle mic command');
+            chrome.runtime.sendMessage({
+              action: 'toggleMic'
+            }).catch(error => {
+              console.log('Failed to send toggle mic message:', error.message);
+            });
+            break;
+            
+          case 'send-message':
+            console.log('Sending send message command');
+            chrome.runtime.sendMessage({
+              action: 'sendMessage'
+            }).catch(error => {
+              console.log('Failed to send message command:', error.message);
+            });
+            break;
+            
+          case 'read-aloud':
+            console.log('Sending read aloud command');
+            chrome.runtime.sendMessage({
+              action: 'readAloud'
+            }).catch(error => {
+              console.log('Failed to send read aloud command:', error.message);
+            });
+            break;
+            
+          default:
+            console.log('Unknown command:', command);
+        }
+      }, 500); // Wait 500ms for side panel to load
+    });
+  });
+});
+
 // Create context menus when extension starts
 chrome.runtime.onInstalled.addListener(() => {
   // Create single unified menu item
@@ -94,3 +153,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Handle other message types
   sendResponse({ success: true });
 });
+
+// Check for command shortcut conflicts during installation
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
+    checkCommandShortcuts();
+  }
+});
+
+function checkCommandShortcuts() {
+  chrome.commands.getAll((commands) => {
+    let missingShortcuts = [];
+
+    for (let {name, shortcut} of commands) {
+      if (shortcut === '') {
+        missingShortcuts.push(name);
+      }
+    }
+
+    if (missingShortcuts.length > 0) {
+      console.warn('Some commands are unassigned due to conflicts:', missingShortcuts);
+      // You could show a notification to the user here
+    }
+  });
+}

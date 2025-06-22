@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 from typing import Annotated, Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from client import post
@@ -17,7 +16,13 @@ from models import (
     TextToSpeechRequest,
     TranslationRequest,
 )
-from prompts import PROMPT_TEMPLATES
+from utils import (
+    PROMPT_TEMPLATES,
+    extract_ocr,
+    load_ocr_store,
+    parse_context,
+    save_ocr_store,
+)
 
 load_dotenv()
 
@@ -36,6 +41,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# health check endpoint
+@app.get("/health")
+async def health_check() -> dict:
+    return {"status": "ok"}
 
 
 @app.post("/detect")
@@ -82,8 +93,15 @@ async def translate(req: TranslationRequest) -> dict:
 # -----------------------------
 @app.post("/chat")
 async def chat(req: ChatRequest) -> dict:
+    print(req)
+    user_prompt = ""
+    if req.context:
+        user_prompt += parse_context(req.context) + "\n\n"
+
+    user_prompt += req.message
+    print(user_prompt)
     payload = req.model_dump(exclude={"message"})
-    payload["messages"] = [{"role": "user", "content": req.message}]
+    payload["messages"] = [{"role": "user", "content": user_prompt}]
 
     return await post(
         "https://api.sarvam.ai/v1/chat/completions",
@@ -135,18 +153,6 @@ async def speech_to_text(
     )
 
 
-def load_ocr_store() -> dict[str, dict]:
-    if os.path.exists(IMAGE_JSON_PATH):
-        with open(IMAGE_JSON_PATH, encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-
-def save_ocr_store(data: dict[str, dict]) -> None:
-    with open(IMAGE_JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-
-
 # -------------------------
 # Endpoint
 # -------------------------
@@ -168,7 +174,7 @@ async def image_ocr(image_url: str) -> str:
 @app.post("/image_vlm")
 async def image_vlm(image_url: str) -> str:
     payload = {
-        "model": "pixtral-12b-2409",
+        "model": "pixtral-12b-latest",
         "messages": [
             {
                 "role": "user",
@@ -194,27 +200,37 @@ async def image_vlm(image_url: str) -> str:
 
 
 @app.post("/image")
-async def analyze_image(image_url: str) -> dict:
-    ocr_store = load_ocr_store()
-    if image_url in ocr_store:
-        return ocr_store[image_url]
+async def analyze_image(image_url: str, store: dict = None) -> dict:
+    if not store:
+        store = load_ocr_store()
+    if image_url in store:
+        return store[image_url]
 
-    ocr_task = image_ocr(image_url)
-    vlm_task = image_vlm(image_url)
-
-    ocr_result, vlm_result = await asyncio.gather(ocr_task, vlm_task)
-    result = {
-        "ocr": ocr_result,
-        "vlm": vlm_result,
-    }
-
-    ocr_store[image_url] = result
-    save_ocr_store(ocr_store)
-
+    vlm_result = await image_vlm(image_url)
+    result = {"vlm": vlm_result}
+    print(result)
+    store[image_url] = result
     return result
 
 
-def extract_ocr(ocr_response: dict) -> str:
-    pages = ocr_response.get("pages", [])
-    markdown_parts = [page.get("markdown", "") for page in pages]
-    return "\n\n".join(markdown_parts)
+async def background_image_batch(urls: list[str], max_concurrent: int = 5):
+    sem = asyncio.Semaphore(max_concurrent)
+    store = load_ocr_store()
+
+    async def sem_task(url: str):
+        async with sem:
+            await analyze_image(url, store)
+
+    await asyncio.gather(*(sem_task(url) for url in urls))
+    save_ocr_store(store)
+
+
+def run_async_batch(urls: list[str]):
+    asyncio.run(background_image_batch(urls))
+
+
+@app.post("/batch/image")
+async def batch_image_analyze(urls: list[str], background_tasks: BackgroundTasks):
+    # Queue this for background execution after returning response
+    background_tasks.add_task(run_async_batch, urls)
+    return {"status": "running"}

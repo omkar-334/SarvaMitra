@@ -51,8 +51,14 @@ class TranslationRequest(BaseModel):
     speaker_gender: Literal["Male", "Female"] | None = "Male"
 
 
+class ChatContext(BaseModel):
+    text: str | None = None
+    image_urls: list[str] | None = None
+
+
 class ChatRequest(BaseModel):
     message: str
+    context: ChatContext | None = None
     model: str = "sarvam-m"
     temperature: float = 0.5
     top_p: float = 1.0

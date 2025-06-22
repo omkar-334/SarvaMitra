@@ -10,6 +10,57 @@ let resultsHistory = [];
 let selectedMessageId = null; // Track selected message for quick actions
 let isTextboxSelected = false; // Track if textbox is selected
 let isReadAloudInProgress = false; // Track if read aloud is currently in progress
+let detectedImages = []; // Track all images found on the page
+let selectedImageId = null; // Track selected image for quick actions
+
+// --- Chat Context Management ---
+let chatContext = {
+    text: null,
+    image_urls: []
+};
+
+// --- Image Detection Caching ---
+let currentPageUrl = null; // Track current page URL for caching
+let imagesCache = new Map(); // Cache images by URL
+
+// Function to clear image cache (useful for testing or when cache gets too large)
+function clearImageCache() {
+    imagesCache.clear();
+    currentPageUrl = null;
+    detectedImages = [];
+    console.log('Image cache cleared');
+}
+
+// Function to ensure content script is available
+async function ensureContentScriptAvailable(tabId) {
+    try {
+        // First try to ping the content script
+        await chrome.tabs.sendMessage(tabId, { action: 'ping' });
+        return true; // Content script is available
+    } catch (error) {
+        console.log('Content script not available, attempting to inject:', error.message);
+        
+        try {
+            // Try to inject the content script programmatically
+            await chrome.scripting.executeScript({
+                target: { tabId: tabId },
+                files: ['content.js']
+            });
+            
+            // Wait a bit for the script to initialize
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Try to ping again
+            await chrome.tabs.sendMessage(tabId, { action: 'ping' });
+            console.log('Content script successfully injected');
+            return true;
+            
+        } catch (injectionError) {
+            console.log('Failed to inject content script:', injectionError.message);
+            return false;
+        }
+    }
+}
 
 // --- Voice Input State for Chat Page ---
 let isRecordingAudio = false;
@@ -59,35 +110,109 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (message.tabName) {
                 // Handle specific tab switching if needed
                 if (message.text) {
-                    currentText = message.text;
-                    updateAllTextareas(message.text);
-                    enableButtons();
+                    // Set as context text instead of updating main textbox
+                    setContextText(message.text);
                 }
             } else if (message.text) {
-                // No specific tab - just load the text
-                currentText = message.text;
-                updateAllTextareas(message.text);
-                enableButtons();
+                // No specific tab - just set as context text
+                setContextText(message.text);
             }
             
+            sendResponse({ success: true });
+        }
+        
+        // Handle keyboard shortcut commands
+        if (message.action === 'toggleMic') {
+            console.log('Sidepanel received toggleMic command');
+            const chatMicBtn = document.getElementById('chat-mic-btn');
+            if (chatMicBtn) {
+                console.log('Found mic button, clicking it');
+                chatMicBtn.click();
+            } else {
+                console.log('Mic button not found in DOM');
+            }
+            sendResponse({ success: true });
+        }
+        
+        if (message.action === 'sendMessage') {
+            console.log('Sidepanel received sendMessage command');
+            const chatEnterBtn = document.getElementById('chat-enter-btn');
+            if (chatEnterBtn) {
+                console.log('Found send button, checking if enabled:', !chatEnterBtn.disabled);
+                // Check if we have content to send
+                const hasContextText = chatContext.text && chatContext.text.trim().length > 0;
+                const hasUserInput = getCurrentUserMessage().trim().length > 0;
+                
+                console.log('Keyboard shortcut - has context text:', hasContextText, 'has user input:', hasUserInput);
+                
+                if (hasUserInput || hasContextText) {
+                    // Enable the button temporarily for keyboard shortcut
+                    const wasDisabled = chatEnterBtn.disabled;
+                    if (wasDisabled) {
+                        chatEnterBtn.disabled = false;
+                        console.log('Temporarily enabled send button for keyboard shortcut');
+                    }
+                    chatEnterBtn.click();
+                    // Re-disable if it was disabled before
+                    if (wasDisabled) {
+                        setTimeout(() => {
+                            chatEnterBtn.disabled = !hasUserInput();
+                        }, 100);
+                    }
+                } else {
+                    console.log('No content to send, showing notification');
+                    showNotification('Please enter a message or select text from the webpage first', 'warning');
+                }
+            } else {
+                console.log('Send button not found in DOM');
+            }
+            sendResponse({ success: true });
+        }
+        
+        if (message.action === 'readAloud') {
+            console.log('Sidepanel received readAloud command');
+            const readAloudBtn = document.getElementById('read-content-btn');
+            if (readAloudBtn) {
+                console.log('Found read aloud button, clicking it');
+                readAloudBtn.click();
+            } else {
+                console.log('Read aloud button not found in DOM');
+            }
             sendResponse({ success: true });
         }
         
         return true;
     });
     
+    // Listen for tab updates to clear cache when navigating to different pages
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+        if (changeInfo.status === 'complete' && tab.url && tab.url !== currentPageUrl) {
+            console.log('Page navigation detected, clearing image cache');
+            clearImageCache();
+        }
+    });
+    
     // Auto-start voice recording when page loads
-    setTimeout(() => {
-        autoStartVoiceRecording();
-    }, 500);
+    autoStartVoiceRecording();
+    
+    // Initialize the textbox with context system
+    updateTextboxWithContext();
+    
+    // Always detect images on the current page when sidebar opens
+    // This runs regardless of whether text was selected or sidebar was opened manually
+    detectImagesOnPage(); // Removed the setTimeout delay
 });
 
 // Setup Event Listeners
 function setupEventListeners() {
+    console.log('Setting up event listeners...');
+    
     // Chat Mic Button
     const chatMicBtn = document.getElementById('chat-mic-btn');
+    console.log('Mic button found:', !!chatMicBtn);
     if (chatMicBtn) {
         chatMicBtn.addEventListener('click', () => {
+            console.log('Mic button clicked');
             if (isRecordingAudio) {
                 stopVoiceRecording();
             } else {
@@ -98,28 +223,66 @@ function setupEventListeners() {
 
     // Chat Enter Button
     const chatEnterBtn = document.getElementById('chat-enter-btn');
+    console.log('Send button found:', !!chatEnterBtn);
     if (chatEnterBtn) {
         chatEnterBtn.addEventListener('click', async () => {
-            const textarea = document.getElementById('chat-textarea');
-            const text = textarea.value.trim();
-            if (!text) {
-                showNotification('Please enter some text first', 'warning');
+            console.log('Chat enter button clicked');
+            // Add visual feedback
+            chatEnterBtn.style.background = '#ffeb3b';
+            setTimeout(() => {
+                chatEnterBtn.style.background = 'transparent';
+            }, 200);
+            
+            const userMessage = getCurrentUserMessage();
+            console.log('User message:', userMessage);
+            console.log('Message length:', userMessage.length);
+            
+            // Check if there's user input OR context text
+            const hasContextText = chatContext.text && chatContext.text.trim().length > 0;
+            const hasUserInput = userMessage && userMessage.trim().length > 0;
+            
+            console.log('Has context text:', hasContextText);
+            console.log('Has user input:', hasUserInput);
+            
+            if (!hasUserInput && !hasContextText) {
+                showNotification('Please enter a message or select text from the webpage first', 'warning');
                 return;
             }
+            
+            // If no user input but there's context text, use the context text as the message
+            const messageToSend = hasUserInput ? userMessage : chatContext.text;
+            console.log('Message to send:', messageToSend);
             
             try {
                 chatEnterBtn.disabled = true;
                 chatEnterBtn.style.opacity = 0.7;
                 
                 // Step 1: Add user message to chat history immediately
-                addResult('chat', 'You', text, {});
+                addResult('chat', 'You', messageToSend, {});
                 
-                // Step 2: Clear the textbox immediately
-                textarea.value = '';
+                // Step 2: Clear the textbox after sending (only if user typed something)
+                if (hasUserInput) {
+                    const textarea = document.getElementById('chat-textarea');
+                    textarea.value = '';
+                }
                 
-                // Step 3: Send API call and wait for response
+                // Step 3: Prepare context object for API
+                console.log('Current chat context:', chatContext);
+                console.log('Context text:', chatContext.text);
+                console.log('Context image URLs:', chatContext.image_urls);
+                console.log('Image URLs length:', chatContext.image_urls.length);
+                
+                const context = {
+                    text: chatContext.text || null,
+                    image_urls: chatContext.image_urls.length > 0 ? chatContext.image_urls : null
+                };
+                
+                console.log('Sending API call with context:', context);
+                
+                // Step 4: Send API call with new format
                 const response = await callAPI('chat', {
-                    message: text,
+                    message: messageToSend,
+                    context: context,
                     model: "sarvam-m",
                     temperature: 0.5,
                     top_p: 1.0,
@@ -127,10 +290,13 @@ function setupEventListeners() {
                 });
                 const answer = response.choices?.[0]?.message?.content || response.response || response;
                 
-                // Step 4: Add AI response to chat history when it arrives
+                console.log('API response received:', answer);
+                
+                // Step 5: Add AI response to chat history when it arrives
                 addResult('chat', 'Assistant', answer, {});
                 
             } catch (error) {
+                console.error('Chat API error:', error);
                 showNotification('Chat failed: ' + error.message, 'error');
             } finally {
                 chatEnterBtn.disabled = false;
@@ -140,69 +306,94 @@ function setupEventListeners() {
     }
 
     // Read Aloud Button
-    const readAloudBtn = document.getElementById('read-aloud-btn');
+    const readAloudBtn = document.getElementById('read-content-btn');
+    console.log('Read aloud button found:', !!readAloudBtn);
     if (readAloudBtn) {
         readAloudBtn.addEventListener('click', async () => {
-            const textarea = document.getElementById('chat-textarea');
-            const text = textarea.value.trim();
-            if (!text) {
-                showNotification('Please enter some text first', 'warning');
-                return;
-            }
+            console.log('Read aloud button clicked');
+            // Add visual feedback
+            readAloudBtn.style.background = '#ffeb3b';
+            setTimeout(() => {
+                readAloudBtn.style.background = 'transparent';
+            }, 200);
             
-            try {
-                readAloudBtn.disabled = true;
-                readAloudBtn.style.opacity = 0.7;
-                
-                await executeReadAloud(text);
-                
-            } catch (error) {
-                showNotification('Read aloud failed: ' + error.message, 'error');
-            } finally {
-                readAloudBtn.disabled = false;
-                readAloudBtn.style.opacity = 1;
+            const textarea = document.getElementById('selected-content-textarea');
+            console.log('Selected content textarea found:', !!textarea);
+            if (textarea) {
+                console.log('Textarea value:', textarea.value);
+                console.log('Textarea value trimmed:', textarea.value.trim());
+            }
+            if (textarea && textarea.value.trim()) {
+                console.log('Executing read aloud with text:', textarea.value);
+                executeReadAloud(textarea.value);
+            } else {
+                console.log('No content to read, showing warning');
+                showNotification('No content to read', 'warning');
             }
         });
     }
 
     // Clear History Button
     const clearHistoryBtn = document.getElementById('clear-history-btn');
+    console.log('Clear history button found:', !!clearHistoryBtn);
     if (clearHistoryBtn) {
         clearHistoryBtn.addEventListener('click', () => {
             clearAllResults();
         });
     }
 
-    // Quick Action Buttons (New small square buttons)
-    document.querySelectorAll('.quick-action-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const action = btn.dataset.action;
-            
-            if (action === 'move-to-input' || action === 'copy-message' || action === 'read-message') {
-                // Handle message-specific actions
-                handleMessageQuickAction(action);
+    // Quick Action Buttons (New small square buttons) - REMOVED, using new button system
+    // Old quick action listeners removed
+
+    // Copy Content Button
+    const copyContentBtn = document.getElementById('copy-content-btn');
+    console.log('Copy content button found:', !!copyContentBtn);
+    if (copyContentBtn) {
+        copyContentBtn.addEventListener('click', () => {
+            console.log('Copy content button clicked');
+            const textarea = document.getElementById('selected-content-textarea');
+            if (textarea && textarea.value.trim()) {
+                copyToClipboard(textarea.value);
+            } else {
+                showNotification('No content to copy', 'warning');
             }
         });
-    });
+    }
+    
+    console.log('Event listeners setup complete');
+    
+    // Test button functionality after a short delay
+    setTimeout(() => {
+        console.log('=== BUTTON TEST ===');
+        const testSendBtn = document.getElementById('chat-enter-btn');
+        const testReadBtn = document.getElementById('read-content-btn');
+        
+        console.log('Send button in test:', !!testSendBtn);
+        console.log('Read button in test:', !!testReadBtn);
+        
+        if (testSendBtn) {
+            console.log('Send button disabled:', testSendBtn.disabled);
+            console.log('Send button style:', testSendBtn.style.cssText);
+        }
+        
+        if (testReadBtn) {
+            console.log('Read button disabled:', testReadBtn.disabled);
+            console.log('Read button style:', testReadBtn.style.cssText);
+        }
+        console.log('=== END BUTTON TEST ===');
+    }, 1000);
 }
 
 // Message Display Functions
 function displayMessage(message) {
+    // Set the selected text as context instead of direct textarea update
+    setContextText(message.text);
+    
+    // Update current text for backward compatibility
     currentText = message.text;
     
-    // Update all textareas (only chat textarea now)
-    updateTextarea('chat-textarea', message.text);
-    
-    // Enable buttons
+    // Enable buttons since we have context
     enableButtons();
-    
-    // Auto-start voice recording if switching to chat page
-    if (message.type === 'chat' || !message.type) {
-        // Small delay to ensure the page is fully loaded
-        setTimeout(() => {
-            autoStartVoiceRecording();
-        }, 500);
-    }
 }
 
 function updateTextarea(elementId, text) {
@@ -223,10 +414,10 @@ function enableButtons() {
     
     // Only enable buttons for elements that exist
     if (chatTextarea) {
-        const hasChatText = chatTextarea.value.trim().length > 0;
+        const hasUserInputText = hasUserInput();
         const chatEnterBtn = document.getElementById('chat-enter-btn');
         if (chatEnterBtn) {
-            chatEnterBtn.disabled = !hasChatText;
+            chatEnterBtn.disabled = !hasUserInputText;
         }
         
         // Add focus/blur event listeners for textbox selection
@@ -242,12 +433,23 @@ function enableButtons() {
             chatTextarea.classList.remove('selected');
             updateQuickActionStates();
         });
+        
+        // Add input event listener to update button state when user types
+        chatTextarea.addEventListener('input', () => {
+            const hasUserInputText = hasUserInput();
+            const chatEnterBtn = document.getElementById('chat-enter-btn');
+            if (chatEnterBtn) {
+                chatEnterBtn.disabled = !hasUserInputText;
+            }
+        });
     }
 }
 
 function showNoSelection() {
+    // Update current text for backward compatibility
     currentText = '';
-    updateTextarea('chat-textarea', '');
+    
+    // Enable buttons (they will be disabled if no user input)
     enableButtons();
 }
 
@@ -657,30 +859,7 @@ async function autoStartVoiceRecording() {
             return;
         }
         
-        // Check if content script is loaded
-        try {
-            const checkResponse = await chrome.tabs.sendMessage(tab.id, { action: 'ping' });
-            console.log('Content script ping response for auto-recording:', checkResponse);
-        } catch (error) {
-            console.log('Content script not responding for auto-recording:', error.message);
-            return;
-        }
-        
-        // Request microphone permission
-        try {
-            const permissionResponse = await chrome.tabs.sendMessage(tab.id, { action: 'requestMicrophonePermission' });
-            console.log('Auto-recording permission response:', permissionResponse);
-            
-            if (!permissionResponse.success || !permissionResponse.permissionGranted) {
-                console.log('Microphone permission not granted for auto-recording');
-                return;
-            }
-        } catch (error) {
-            console.log('Failed to request microphone permission for auto-recording:', error.message);
-            return;
-        }
-        
-        // Start recording
+        // Start recording immediately without permission checks
         const response = await chrome.tabs.sendMessage(tab.id, { action: 'startRecording' });
         
         if (response.success) {
@@ -696,9 +875,13 @@ async function autoStartVoiceRecording() {
                 if (img) {
                     img.src = 'icons/stop.png';
                 }
+                
+                // Focus on the mic button so user can stop with spacebar
+                chatMicBtn.focus();
+                console.log('Focused on mic button after auto-start');
             }
             
-            showNotification('Voice recording started automatically. Speak now!', 'info');
+            showNotification('Voice recording started automatically. Speak now! Press spacebar to stop.', 'info');
         } else {
             console.log('Failed to start auto-recording:', response.error);
         }
@@ -913,10 +1096,12 @@ async function processAudioData(audioData, audioSize) {
         const currentText = textarea.value.trim();
         
         if (currentText) {
-            updateCurrentText(currentText + '\n\n' + transcript);
+            // Add to main textbox for voice input
+            textarea.value = currentText + '\n\n' + transcript;
             showNotification('Voice input: Text appended', 'info');
         } else {
-            updateCurrentText(transcript);
+            // Add to main textbox for voice input
+            textarea.value = transcript;
             showNotification('Voice input: Text added', 'info');
         }
         
@@ -967,10 +1152,6 @@ function handleMessageQuickAction(action) {
         }
         
         switch (action) {
-            case 'move-to-input':
-                updateCurrentText(selectedMessage.content);
-                showNotification('Message moved to input', 'info');
-                break;
             case 'copy-message':
                 copyToClipboard(selectedMessage.content);
                 break;
@@ -982,36 +1163,31 @@ function handleMessageQuickAction(action) {
 }
 
 function handleTextboxQuickAction(action) {
-    const textarea = document.getElementById('chat-textarea');
-    const text = textarea.value.trim();
+    const userMessage = getCurrentUserMessage();
     
-    if (!text) {
-        showNotification('Textbox is empty', 'warning');
+    if (!userMessage) {
+        showNotification('No user message to work with', 'warning');
         return;
     }
     
     switch (action) {
-        case 'move-to-input':
-            // Already in input, no action needed
-            showNotification('Text is already in the input area', 'info');
-            break;
         case 'copy-message':
-            copyToClipboard(text);
+            copyToClipboard(userMessage);
             break;
         case 'read-message':
-            executeReadAloud(text);
+            executeReadAloud(userMessage);
             break;
     }
 }
 
+// handleImageQuickAction function removed - image input functionality disabled
+
 function updateQuickActionStates() {
-    const moveToInputBtn = document.querySelector('[data-action="move-to-input"]');
     const copyMessageBtn = document.querySelector('[data-action="copy-message"]');
     const readMessageBtn = document.querySelector('[data-action="read-message"]');
     
     const hasSelection = selectedMessageId !== null || isTextboxSelected;
     
-    if (moveToInputBtn) moveToInputBtn.disabled = !hasSelection;
     if (copyMessageBtn) copyMessageBtn.disabled = !hasSelection;
     if (readMessageBtn) {
         // Disable read aloud button if no selection OR if read aloud is in progress
@@ -1021,5 +1197,357 @@ function updateQuickActionStates() {
         } else {
             readMessageBtn.style.opacity = 1;
         }
+    }
+}
+
+// Utility function to properly format base64 image URLs
+function formatImageUrl(url) {
+    if (url.startsWith('data:image/')) {
+        // If it's already properly formatted with base64, return as is
+        if (url.includes(';base64,')) {
+            return url;
+        }
+        
+        // If it's URL-encoded, try to decode it
+        try {
+            const decodedUrl = decodeURIComponent(url);
+            if (decodedUrl.startsWith('data:image/') && decodedUrl.includes(';base64,')) {
+                return decodedUrl;
+            }
+        } catch (e) {
+            console.log('Failed to decode URL-encoded base64:', e);
+        }
+        
+        // If we can't properly format it, skip this image
+        console.log('Skipping malformed base64 image URL:', url);
+        return null;
+    }
+    
+    // For regular URLs, return as is
+    return url;
+}
+
+// Image Detection Functions
+// This function runs every time the sidebar opens, but only detects images once per page
+async function detectImagesOnPage() {
+    try {
+        // Get the current active tab
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tab) {
+            console.log('No active tab found for image detection');
+            return;
+        }
+        
+        // Check if we can inject content script on this page
+        if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:') || tab.url.startsWith('file://')) {
+            console.log('Image detection not available on this page type');
+            showNotification('Image detection not available on this page type', 'info');
+            return;
+        }
+        
+        // Check if we already have cached images for this page
+        if (currentPageUrl === tab.url && imagesCache.has(tab.url)) {
+            console.log('Using cached images for page:', tab.url);
+            detectedImages = imagesCache.get(tab.url);
+            renderImageRow();
+            return;
+        }
+        
+        // Page URL has changed or no cache exists, so detect images
+        console.log('Detecting images on page:', tab.url);
+        currentPageUrl = tab.url;
+        
+        // Ensure content script is available before attempting image detection
+        const contentScriptAvailable = await ensureContentScriptAvailable(tab.id);
+        
+        if (!contentScriptAvailable) {
+            console.log('Content script not available, skipping image detection');
+            showNotification('Image detection temporarily unavailable. Please refresh the page and try again.', 'warning');
+            // Cache empty result to avoid repeated failed attempts
+            imagesCache.set(tab.url, []);
+            return;
+        }
+        
+        // Content script is available, now detect images
+        const response = await chrome.tabs.sendMessage(tab.id, { action: 'detectImages' });
+        
+        if (response && response.success) {
+            detectedImages = response.images || [];
+            // Cache the detected images for this page
+            imagesCache.set(tab.url, detectedImages);
+            
+            // Limit cache size to prevent memory issues (keep only last 10 pages)
+            if (imagesCache.size > 10) {
+                const firstKey = imagesCache.keys().next().value;
+                imagesCache.delete(firstKey);
+            }
+            
+            console.log('Detected and cached images:', detectedImages);
+            renderImageRow();
+            
+            // Call batch image analysis API with all detected image URLs
+            if (detectedImages.length > 0) {
+                const imageUrls = detectedImages.map(img => formatImageUrl(img.src)).filter(url => url !== null);
+                console.log('Calling batch image analysis API with URLs:', imageUrls);
+                
+                // Make the API call non-blocking so it doesn't affect the UI
+                setTimeout(async () => {
+                    try {
+                        // First check if backend server is available
+                        const healthCheck = await fetch('http://localhost:8000/health', { 
+                            method: 'GET',
+                            signal: AbortSignal.timeout(3000) // 3 second timeout
+                        });
+                        
+                        if (!healthCheck.ok) {
+                            console.log('Backend server health check failed, skipping batch image analysis');
+                            return;
+                        }
+                        
+                        const healthResult = await healthCheck.json();
+                        if (healthResult.status !== 'ok') {
+                            console.log('Backend server not healthy, skipping batch image analysis');
+                            return;
+                        }
+                        
+                        console.log('Backend server is healthy, proceeding with batch image analysis');
+                        
+                        const batchResponse = await fetch('http://localhost:8000/batch/image', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(imageUrls), // Send properly formatted URLs
+                            signal: AbortSignal.timeout(10000) // 10 second timeout
+                        });
+                        
+                        if (batchResponse.ok) {
+                            const batchResult = await batchResponse.json();
+                            console.log('Batch image analysis started:', batchResult);
+                            showNotification(`Image analysis started for ${imageUrls.length} images`, 'info');
+                        } else {
+                            console.error('Batch image analysis failed:', batchResponse.status, batchResponse.statusText);
+                        }
+                    } catch (error) {
+                        if (error.name === 'AbortError') {
+                            console.log('Batch image analysis request timed out');
+                        } else {
+                            console.error('Error calling batch image analysis API:', error);
+                        }
+                        // Don't show error notification to user as this is a background task
+                    }
+                }, 100); // Small delay to ensure UI rendering is not blocked
+            }
+        }
+    } catch (error) {
+        console.error('Error detecting images:', error);
+        showNotification('Failed to detect images: ' + error.message, 'error');
+    }
+}
+
+function renderImageRow() {
+    const imageRow = document.getElementById('image-row');
+    if (!imageRow) return;
+    
+    if (detectedImages.length === 0) {
+        imageRow.style.display = 'none';
+        return;
+    }
+    
+    imageRow.style.display = 'block';
+    
+    const imageContainer = document.getElementById('image-container');
+    const imagesHTML = detectedImages.map((image, index) => {
+        const formattedUrl = formatImageUrl(image.src);
+        const isInContext = formattedUrl && chatContext.image_urls.includes(formattedUrl);
+        
+        return `
+            <div class="image-item ${isInContext ? 'selected' : ''}" data-image-id="${image.id}" title="${image.alt || 'Image'}" style="position:relative;">
+                <img src="${image.src}" crossorigin="anonymous" alt="${image.alt || 'Image'}"
+                    onerror="this.style.display='none'; this.parentNode.querySelector('.image-number').style.display='block';"
+                    style="width:100%;height:100%;object-fit:cover;display:block;" />
+                <span class="image-number" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:4px 8px;border-radius:12px;border:1px solid #ddd;">${index + 1}</span>
+            </div>
+        `;
+    }).join('');
+
+    imageContainer.innerHTML = imagesHTML;
+
+    // Add click handlers for image selection
+    imageContainer.querySelectorAll('.image-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const imageId = item.dataset.imageId;
+            selectImage(imageId);
+        });
+    });
+
+    // Update quick action button states
+    updateQuickActionStates();
+}
+
+function selectImage(imageId) {
+    const selectedImage = detectedImages.find(img => img.id === imageId);
+    if (!selectedImage) {
+        console.log('Selected image not found');
+        return;
+    }
+    
+    console.log('Selecting image:', selectedImage);
+    
+    // Format the image URL properly
+    const formattedUrl = formatImageUrl(selectedImage.src);
+    if (!formattedUrl) {
+        console.log('Skipping image with malformed URL:', selectedImage.src);
+        showNotification('Image URL format not supported', 'warning');
+        return;
+    }
+    
+    console.log('Formatted URL:', formattedUrl);
+    
+    // Check if image is already in context
+    const isInContext = chatContext.image_urls.includes(formattedUrl);
+    console.log('Is image in context:', isInContext);
+    console.log('Current context image URLs:', chatContext.image_urls);
+    
+    if (isInContext) {
+        // Remove from context
+        const index = chatContext.image_urls.indexOf(formattedUrl);
+        chatContext.image_urls.splice(index, 1);
+        console.log('Image removed from context:', formattedUrl);
+    } else {
+        // Add to context
+        chatContext.image_urls.push(formattedUrl);
+        console.log('Image added to context:', formattedUrl);
+    }
+    
+    console.log('Updated context image URLs:', chatContext.image_urls);
+    
+    // Focus on the image on the webpage using the correct image ID
+    focusOnImage(selectedImage.id);
+    
+    // Update the display
+    renderImageRow();
+    updateTextboxWithContext();
+    updateQuickActionStates();
+}
+
+// --- Chat Context Management Functions ---
+function setContextText(text) {
+    if (text && text.trim()) {
+        chatContext.text = text.trim();
+        console.log('Context text set:', chatContext.text);
+        
+        // Only update the selected content textarea, not the main prompt textbox
+        updateSelectedContentTextarea();
+        
+        // Update button state since we now have context
+        const chatEnterBtn = document.getElementById('chat-enter-btn');
+        if (chatEnterBtn) {
+            chatEnterBtn.disabled = !hasUserInput();
+            console.log('Updated send button state - disabled:', chatEnterBtn.disabled);
+        }
+    }
+}
+
+function addContextImageUrl(imageUrl) {
+    if (!chatContext.image_urls.includes(imageUrl)) {
+        chatContext.image_urls.push(imageUrl);
+        updateTextboxWithContext();
+        console.log('Context image URL added:', imageUrl);
+    }
+}
+
+function updateSelectedContentTextarea() {
+    const textarea = document.getElementById('selected-content-textarea');
+    if (!textarea) return;
+    
+    let content = '';
+    
+    // Add context text if available (raw text, no labels)
+    if (chatContext.text) {
+        content += chatContext.text;
+    }
+    
+    // Add a separator if both text and images are present
+    if (chatContext.text && chatContext.image_urls.length > 0) {
+        content += '\n\n';
+    }
+    
+    // Add image count if available (simple format)
+    if (chatContext.image_urls.length > 0) {
+        content += `${chatContext.image_urls.length} image(s) selected`;
+    }
+    
+    textarea.value = content;
+}
+
+function updateTextboxWithContext() {
+    const textarea = document.getElementById('chat-textarea');
+    if (!textarea) return;
+    
+    // Don't clear the main textbox - preserve user input
+    // Only update the selected content textarea
+    updateSelectedContentTextarea();
+}
+
+function getCurrentUserMessage() {
+    const textarea = document.getElementById('chat-textarea');
+    if (!textarea) return '';
+    
+    // Simply return the textarea value since there's no context display
+    return textarea.value.trim();
+}
+
+function hasUserInput() {
+    const userMessage = getCurrentUserMessage();
+    const hasUserText = userMessage.length > 0;
+    const hasContextText = chatContext.text && chatContext.text.trim().length > 0;
+    
+    console.log('hasUserInput check - user text:', hasUserText, 'context text:', hasContextText);
+    
+    return hasUserText || hasContextText;
+}
+
+async function focusOnImage(imageId) {
+    try {
+        console.log('Focusing on image with ID:', imageId);
+        
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tab) {
+            console.error('No active tab found for image focusing');
+            showNotification('No active tab found.', 'error');
+            return;
+        }
+        
+        console.log('Sending focus message to tab:', tab.id);
+        
+        // Send message to content script to focus on the image
+        const response = await chrome.tabs.sendMessage(tab.id, { 
+            action: 'focusOnImage', 
+            imageId: imageId 
+        });
+        
+        console.log('Focus response:', response);
+        
+        if (response && response.success) {
+            showNotification('Image focused on webpage', 'info');
+        } else {
+            console.error('Focus failed:', response?.error || 'Unknown error');
+            showNotification('Failed to focus on image', 'error');
+        }
+        
+    } catch (error) {
+        console.error('Error focusing on image:', error);
+        showNotification('Failed to focus on image: ' + error.message, 'error');
+    }
+}
+
+// Function to clear the image map (useful for cleanup)
+function clearImageMap() {
+    if (window.sarvamImageMap) {
+        window.sarvamImageMap.clear();
+        console.log('Image map cleared');
     }
 }

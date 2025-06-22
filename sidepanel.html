@@ -426,58 +426,58 @@
             100% { transform: scale(1); }
         }
         
-        /* Quick Actions Row */
+        /* Quick Actions Row - New Design */
         .quick-actions-row {
-            background: #fff;
-            border-bottom: 1px solid #e0e0e0;
-            padding: 6px 8px;
+            margin-bottom: 8px;
         }
         
         .quick-actions-container {
             display: flex;
+            align-items: stretch;
             gap: 4px;
-            justify-content: center;
         }
         
-        .quick-action-btn {
-            width: 32px;
-            height: 32px;
-            border: 1px solid #e0e0e0;
-            background: white;
+        .selected-content-area {
+            flex: 1;
+            height: 38px;
+            min-height: 38px;
+            max-height: 120px;
+            resize: vertical;
+            padding: 8px;
+            border: 1px solid #ddd;
             border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.4;
+            font-family: inherit;
+            margin: 0;
+            box-sizing: border-box;
+            background-color: #f8f9fa;
+        }
+        
+        .action-grid-btn {
+            background: transparent;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            width: 38px;
+            height: 38px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.2s ease;
-            font-size: 14px;
+            transition: all 0.2s;
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
         }
         
-        .quick-action-btn:hover {
-            background: #f8f9fa;
-            border-color: #1976d2;
-            transform: translateY(-1px);
+        .action-grid-btn:hover {
+            background-color: #f0f0f0;
+            border-color: #007bff;
         }
         
-        .quick-action-btn.active {
-            background: #e3f2fd;
-            border-color: #1976d2;
-            color: #1976d2;
-        }
-        
-        .quick-action-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-        
-        .quick-action-btn:disabled:hover {
-            background: white;
-            border-color: #e0e0e0;
-            transform: none;
-        }
-        
-        .quick-action-icon {
-            font-size: 16px;
+        .action-grid-btn:active {
+            background-color: #e0e0e0;
+            transform: scale(0.95);
         }
         
         /* Selected Text Section */
@@ -489,7 +489,7 @@
         
         .selected-text-container {
             display: flex;
-            align-items: flex-end;
+            align-items: stretch;
             gap: 4px;
         }
         
@@ -567,32 +567,6 @@
             background: #ccc;
             cursor: not-allowed;
             transform: none;
-        }
-        
-        /* Action Grid Styles */
-        .action-grid-btn {
-            background: transparent;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 12px;
-            color: #666;
-        }
-        
-        .action-grid-btn:hover {
-            background: #f8f9fa;
-            border-color: #1976d2;
-            color: #1976d2;
-            transform: translateY(-1px);
-        }
-        
-        .action-grid-btn:active {
-            transform: translateY(0);
         }
         
         /* Action Configuration */
@@ -739,6 +713,73 @@
             margin-top: 15px;
         }
         
+        /* Image Row */
+        .image-row {
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 6px 8px;
+            min-height: 60px;
+        }
+        
+        .image-container {
+            display: flex;
+            gap: 4px;
+            overflow-x: auto;
+            padding: 2px;
+            height: 60px;
+            flex-wrap: nowrap;
+        }
+        
+        .image-item {
+            position: relative;
+            width: 50px;
+            height: 50px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8f9fa;
+        }
+        
+        .image-item:hover {
+            border-color: #1976d2;
+            transform: scale(1.05);
+        }
+        
+        .image-item.selected {
+            border-color: #1976d2;
+            background-color: #e3f2fd;
+        }
+        
+        .image-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .image-number {
+            color: #666;
+            font-size: 14px;
+            font-weight: bold;
+            background: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            border: 1px solid #ddd;
+        }
+        
+        .image-item.selected .image-number {
+            color: #1976d2;
+            background: #e3f2fd;
+            border-color: #1976d2;
+        }
+        
         /* Responsive adjustments */
         @media (max-width: 300px) {
             .action-buttons {
@@ -765,11 +806,11 @@
                             <p>Select text from any webpage, then use the quick actions below to:</p>
                             <ul>
                                 <li>🎤 <strong>Voice Input</strong> - Recording starts automatically when you open this page!</li>
-                                <li>⬇️ <strong>Move to Input</strong> - Click a message or focus textbox, then use this to copy content</li>
                                 <li>📋 <strong>Copy</strong> - Click a message or focus textbox, then use this to copy content</li>
                                 <li>🔊 <strong>Read Aloud</strong> - Click a message or focus textbox, then use this to read content</li>
                             </ul>
                             <p><strong>Tip:</strong> Click on any chat message to select it, or focus the textbox to work with its content!</p>
+                            <p><strong>Images:</strong> Click on images below to select them for context. Selected images will have blue borders.</p>
                         </div>
                     </div>
                 </div>
@@ -781,17 +822,23 @@
                     </div>
                 </div>
                 
-                <!-- Quick Actions Row (Small Square Buttons) -->
+                <!-- Image Row (Above Quick Actions) -->
+                <div class="image-row" id="image-row" style="display: none;">
+                    <div class="image-container" id="image-container">
+                        <!-- Images will be dynamically inserted here -->
+                    </div>
+                </div>
+                
+                <!-- Quick Actions Row (Like Textbox Row) -->
                 <div class="quick-actions-row">
-                    <div class="quick-actions-container">
-                        <button class="quick-action-btn" data-action="move-to-input" title="Move to Input" disabled>
-                            <span class="quick-action-icon">⬇️</span>
+                    <div class="quick-actions-container" style="display: flex; align-items: stretch; gap: 4px;">
+                        <textarea class="selected-content-area" id="selected-content-textarea" style="flex: 1; height: 38px; min-height: 38px; max-height: 120px; resize: vertical; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; line-height: 1.4; font-family: inherit; margin: 0; box-sizing: border-box; background-color: #f8f9fa;" placeholder="Selected content will appear here..."></textarea>
+                        
+                        <button class="action-grid-btn" id="copy-content-btn" title="Copy Content" style="background: transparent; border: 1px solid #ddd; border-radius: 6px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box;">
+                            <span style="font-size: 16px;">📋</span>
                         </button>
-                        <button class="quick-action-btn" data-action="copy-message" title="Copy Message" disabled>
-                            <span class="quick-action-icon">📋</span>
-                        </button>
-                        <button class="quick-action-btn" data-action="read-message" title="Read Message" disabled>
-                            <span class="quick-action-icon">🔊</span>
+                        <button class="action-grid-btn" id="read-content-btn" title="Read Content" style="background: transparent; border: 1px solid #ddd; border-radius: 6px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; padding: 0; margin: 0; box-sizing: border-box;">
+                            <span style="font-size: 16px;">🔊</span>
                         </button>
                     </div>
                 </div>

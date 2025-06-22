@@ -13,7 +13,8 @@
     "storage",
     "contextMenus",
     "activeTab",
-    "tabs"
+    "tabs",
+    "scripting"
   ],
   
   "host_permissions": [
@@ -43,6 +44,31 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
+  
+  "commands": {
+    "toggle-mic": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+1"
+      },
+      "description": "Toggle microphone recording",
+      "global": true
+    },
+    "send-message": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+2"
+      },
+      "description": "Send message",
+      "global": true
+    },
+    "read-aloud": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+3"
+      },
+      "description": "Read aloud",
+      "global": true
+    }
+  },
+  
   "icons": {
   "16": "icons/icon16.jpeg",
   "32": "icons/icon32.jpeg",

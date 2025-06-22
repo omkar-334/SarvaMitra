@@ -4,6 +4,8 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import HTTPException
 
+from utils import extract
+
 # Load environment variables FIRST
 load_dotenv()
 
@@ -14,14 +16,6 @@ MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 # Add validation to ensure the key is loaded
 if not SARVAM_API_KEY:
     raise RuntimeError("SARVAM_API_KEY is not set in the environment variables")
-
-
-def extract(api_response: dict) -> dict:
-    try:
-        content = api_response["choices"][0]["message"]["content"]
-        return {"response": content}  # noqa: TRY300
-    except (KeyError, IndexError) as e:
-        return {"response": f"Error parsing response: {e!s}"}
 
 
 async def post(
